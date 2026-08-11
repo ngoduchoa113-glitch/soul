@@ -3,6 +3,7 @@ import { WEAPONS } from "../data/weapons";
 import { DECOR_ASSETS, OBSTACLE_CLUSTER_ASSETS, OBSTACLE_TREE_ASSETS } from "../data/decor";
 import { WEAPON_ART_OVERRIDES, WEAPON_ICON_SHAPES, type WeaponIconShape } from "../data/weaponIcons";
 import { FLOOR_TILE_ASSETS } from "../data/floorTiles";
+import { ROCK_ASSETS } from "../data/rocks";
 import { ALL_CREATURE_SPRITE_SHEETS } from "../data/creatureSprites";
 import { WALL_KEYS, generateBeveledTile, generateFloorSupertileFromArt, generateWallTile } from "./tileTextures";
 
@@ -23,6 +24,7 @@ export class BootScene extends Phaser.Scene {
       this.load.spritesheet(sheet.key, sheet.path, { frameWidth: sheet.frameWidth, frameHeight: sheet.frameHeight });
     }
     for (const tile of FLOOR_TILE_ASSETS) this.load.image(tile.key, tile.path);
+    for (const rock of ROCK_ASSETS) this.load.image(rock.key, rock.path);
 
     this.createCircleTexture("projectile", 5, 0xf6e05e);
     WALL_KEYS.forEach((key, i) => generateWallTile(this, key, 4000 + i * 97));
