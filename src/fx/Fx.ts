@@ -94,6 +94,28 @@ export class Fx {
     this.hitSpark(x, y, strokeColor);
   }
 
+  /**
+   * Lingering damage-over-time zone (poison barrel): a translucent filled circle that stays put
+   * for `durationMs` so the hazard's actual damage radius is visible, not just its impact burst —
+   * gently pulses in place, then fades out right as the last damage tick lands.
+   */
+  poisonCloud(x: number, y: number, radius: number, durationMs: number, color = 0x4ade80): void {
+    const cloud = this.scene.add.circle(x, y, radius, color, 0.22).setStrokeStyle(2, color, 0.55).setDepth(6).setScale(0.3);
+    this.scene.tweens.add({ targets: cloud, scale: 1, duration: 180, ease: "Quad.Out" });
+    const pulse = this.scene.tweens.add({
+      targets: cloud,
+      fillAlpha: 0.34,
+      duration: 420,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.InOut",
+    });
+    this.scene.time.delayedCall(durationMs, () => {
+      pulse.stop();
+      this.scene.tweens.add({ targets: cloud, alpha: 0, scale: 0.7, duration: 220, onComplete: () => cloud.destroy() });
+    });
+  }
+
   laserBeam(x1: number, y1: number, x2: number, y2: number, color = 0xff4d6d, width = 4): void {
     const g = this.scene.add.graphics().setDepth(13);
     g.lineStyle(width, color, 0.9);

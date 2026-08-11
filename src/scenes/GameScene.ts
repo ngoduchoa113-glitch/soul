@@ -14,10 +14,11 @@ import type { Combatant } from "../entities/Combatant";
 import { elementColor, type EnemyDef } from "../data/enemies";
 import { Hud } from "../ui/Hud";
 import { ChoiceMenu } from "../ui/ChoiceMenu";
+import { UpgradeChoiceScreen } from "../ui/UpgradeChoiceScreen";
 import { Minimap } from "../ui/Minimap";
 import type { WeaponDef } from "../data/weapons";
 import type { CharacterId, SkillId } from "../data/characters";
-import { UPGRADES, pickRandomUpgradeOptions, type UpgradeId } from "../data/upgrades";
+import { pickRandomUpgradeOptions, type UpgradeId } from "../data/upgrades";
 import { Dungeon } from "../dungeon/Dungeon";
 import type { StageKind } from "../dungeon/DungeonLayout";
 import type { ChestReward } from "../entities/Chest";
@@ -88,6 +89,7 @@ export class GameScene extends Phaser.Scene {
   private actionKeys!: ActionKeys;
   private hud!: Hud;
   private choiceMenu!: ChoiceMenu;
+  private upgradeChoiceScreen!: UpgradeChoiceScreen;
   private minimap!: Minimap;
   private uiContainer!: Phaser.GameObjects.Container;
   private weaponInfoPanel!: Phaser.GameObjects.Container;
@@ -300,6 +302,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.setCoins(this.player.coins);
     this.hud.setStage(this.floor, this.stage);
     this.choiceMenu = new ChoiceMenu(this, this.uiContainer);
+    this.upgradeChoiceScreen = new UpgradeChoiceScreen(this, this.uiContainer);
     this.minimap = new Minimap(this, this.uiContainer);
     this.isPaused = false;
     this.buildPauseOverlay();
@@ -421,8 +424,19 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.activeChoice = { kind: "stageUpgrade", pendingData, options };
-    const lines = options.map((id, i) => `${i + 1}) ${UPGRADES[id].icon} ${UPGRADES[id].name} — ${UPGRADES[id].description}`);
-    this.choiceMenu.show("Choose a Power", lines);
+    this.upgradeChoiceScreen.show(options, this.player, (id) => this.resolveStageUpgrade(id));
+  }
+
+  /** Called by UpgradeChoiceScreen once its pick + confirm animation has finished. */
+  private resolveStageUpgrade(id: UpgradeId): void {
+    if (!this.activeChoice || this.activeChoice.kind !== "stageUpgrade") return;
+    this.player.applyUpgrade(id);
+    // Re-snapshot now — the pending snapshot was taken before this pick, so it wouldn't carry
+    // the upgrade (or any HP/energy change) that happened while the menu was open.
+    const pendingData: GameSceneData = { ...this.activeChoice.pendingData, snapshot: this.player.getSnapshot() };
+    this.activeChoice = null;
+    this.upgradeChoiceScreen.hide();
+    this.transitionToScene("GameScene", pendingData);
   }
 
   private handlePlayerAttacked(damage: number): void {
@@ -742,6 +756,7 @@ export class GameScene extends Phaser.Scene {
     const ticks = Math.max(1, Math.round(durationMs / tickMs));
 
     this.fx.explosion(x, y, radius, 0x4ade80, 0x4ade80);
+    this.fx.poisonCloud(x, y, radius, durationMs);
     this.sfx.playHit();
     this.dealAoeDamageToAll(x, y, radius, impactDamage, 0x4ade80);
 
@@ -1069,13 +1084,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.activeChoice) return;
 
     if (this.activeChoice.kind === "stageUpgrade") {
-      const id = this.activeChoice.options[index];
-      if (id) this.player.applyUpgrade(id);
-      // Re-snapshot now — the pending snapshot was taken before this pick, so it wouldn't
-      // carry the upgrade (or any HP/energy change) that happened while the menu was open.
-      const pendingData: GameSceneData = { ...this.activeChoice.pendingData, snapshot: this.player.getSnapshot() };
-      this.closeChoice();
-      this.transitionToScene("GameScene", pendingData);
+      // Same click-to-confirm flow as clicking the card — keeps its hover/select/confirm animation.
+      this.upgradeChoiceScreen.selectByIndex(index);
       return;
     }
 

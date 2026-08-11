@@ -8,7 +8,7 @@ import {
   type WeaponInstance,
 } from "../data/weapons";
 import { CHARACTERS, type CharacterDef, type CharacterId, type SkillId } from "../data/characters";
-import { type UpgradeId } from "../data/upgrades";
+import { UPGRADES, type UpgradeEffectPreview, type UpgradeId } from "../data/upgrades";
 import { weaponHoldRotationOffset } from "../data/weaponIcons";
 import { CHARACTER_SPRITES, type CreatureAnimSet } from "../data/creatureSprites";
 
@@ -289,6 +289,61 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   get meleeReflectChance(): number {
     return Math.min(0.75, this.stackCount("meleeReflect") * 0.25);
+  }
+
+  /**
+   * Live "previous value → new value" for the upgrade detail panel — mirrors the formulas in the
+   * getters above at the stack count this pick would produce (always 0 → 1, since every upgrade is
+   * a one-time pick per run; see UPGRADES' doc comment). Kept here rather than in data/upgrades.ts
+   * because it needs to read the player's actual current stats/getters, not just static data.
+   */
+  previewUpgradeEffect(id: UpgradeId): UpgradeEffectPreview {
+    const statLabel = UPGRADES[id].statLabel;
+    const pct = (v: number) => `${Math.round(v * 100)}%`;
+    const next = this.stackCount(id) + 1;
+    const preview = ((): { before: string; after: string } => {
+      switch (id) {
+        case "maxHp":
+          return { before: `${this.stats.maxHp}`, after: `${this.stats.maxHp + 25}` };
+        case "maxEnergy":
+          return { before: `${this.stats.maxEnergy}`, after: `${this.stats.maxEnergy + 20}` };
+        case "emergencyShield":
+          return { before: `${this.stackCount(id)}`, after: `${next}` };
+        case "lifeHarvest":
+          return { before: pct(this.lifeHarvestChance), after: pct(Math.min(0.6, next * 0.15)) };
+        case "energyHarvest":
+          return { before: pct(this.energyHarvestChanceBonus), after: pct(Math.min(0.6, next * 0.15)) };
+        case "accuracyBuff":
+          return { before: pct(1 - this.spreadMult), after: pct(1 - Math.max(0, 1 - next * 0.2)) };
+        case "fireRateBuff":
+          return { before: pct(this.fireRateMult - 1), after: pct(next * 0.15) };
+        case "bounceBuff":
+          return { before: `${this.bonusBounces}`, after: `${next}` };
+        case "pierceBuff":
+          return { before: `${this.bonusPierce}`, after: `${next}` };
+        case "shotgunBuff":
+          return { before: `${this.bonusPellets}`, after: `${next}` };
+        case "laserBuff":
+          return { before: pct(this.laserWidthMult - 1), after: pct(next * 0.3) };
+        case "splitShot":
+          return { before: pct(this.splitShotChance), after: pct(Math.min(0.8, next * 0.2)) };
+        case "critBuff":
+          return { before: pct(this.critChance), after: pct(this.critChance + 0.08) };
+        case "piercingCrit":
+          return { before: this.piercingCritActive ? "Unlocked" : "Locked", after: "Unlocked" };
+        case "meleeRangeBuff":
+          return { before: pct(this.meleeRangeMult - 1), after: pct(next * 0.15) };
+        case "energyOrbBuff":
+          return { before: pct(this.energyOrbMult - 1), after: pct(next * 0.25) };
+        case "cooldownBuff":
+          return { before: pct(1 - this.cooldownMult), after: pct(Math.min(0.7, next * 0.12)) };
+        case "onSale":
+          return { before: pct(this.shopDiscountMult), after: pct(Math.min(0.6, next * 0.15)) };
+        case "meleeReflect":
+          return { before: pct(this.meleeReflectChance), after: pct(Math.min(0.75, next * 0.25)) };
+      }
+    })();
+    return { statLabel, ...preview };
   }
 
   private handleMovement(keys: WasdKeys): void {

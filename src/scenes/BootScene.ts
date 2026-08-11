@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { WEAPONS } from "../data/weapons";
 import { DECOR_ASSETS, OBSTACLE_CLUSTER_ASSETS, OBSTACLE_TREE_ASSETS } from "../data/decor";
 import { WEAPON_ART_OVERRIDES, WEAPON_ICON_SHAPES, type WeaponIconShape } from "../data/weaponIcons";
+import { UPGRADE_ICON_SHAPES, type UpgradeIconShape } from "../data/upgradeIcons";
 import { FLOOR_TILE_ASSETS } from "../data/floorTiles";
 import { ROCK_ASSETS } from "../data/rocks";
 import { ALL_CREATURE_SPRITE_SHEETS } from "../data/creatureSprites";
@@ -47,6 +48,10 @@ export class BootScene extends Phaser.Scene {
       if (WEAPON_ART_OVERRIDES[id]) return;
       const icon = WEAPON_ICON_SHAPES[id] ?? { shape: "gun", color: 0xffffff };
       this.createWeaponIcon(`weapon-icon-${id}`, icon.shape, icon.color);
+    });
+
+    Object.entries(UPGRADE_ICON_SHAPES).forEach(([id, icon]) => {
+      this.createUpgradeIcon(`upgrade-icon-${id}`, icon.shape, icon.color);
     });
   }
 
@@ -189,6 +194,242 @@ export class BootScene extends Phaser.Scene {
         g.fillRect(cx - 2, cy - 2, 4, 14);
         g.fillStyle(color, 1);
         g.fillRect(cx - 9, cy - 12, 18, 10);
+        break;
+    }
+
+    g.lineStyle(1, 0xffffff, 0.35);
+    g.strokeRect(0, 0, size, size);
+    g.generateTexture(key, size, size);
+    g.destroy();
+  }
+
+  /** Draws a small distinct icon per upgrade (upgrade cards, detail panel) — shape + accent color, no real art, same convention as createWeaponIcon but a size up since it's the card's focal point. */
+  private createUpgradeIcon(key: string, shape: UpgradeIconShape, color: number): void {
+    const size = 32;
+    const cx = size / 2;
+    const cy = size / 2;
+    const g = this.make.graphics({ x: 0, y: 0 });
+
+    switch (shape) {
+      case "heart":
+        g.fillStyle(color, 1);
+        g.fillCircle(cx - 5, cy - 4, 6);
+        g.fillCircle(cx + 5, cy - 4, 6);
+        g.fillTriangle(cx - 10, cy - 2, cx + 10, cy - 2, cx, cy + 11);
+        break;
+      case "shield":
+        g.fillStyle(0x2a2a35, 1);
+        g.fillPoints(
+          [
+            { x: cx, y: cy - 13 },
+            { x: cx + 10, y: cy - 8 },
+            { x: cx + 10, y: cy + 4 },
+            { x: cx, y: cy + 14 },
+            { x: cx - 10, y: cy + 4 },
+            { x: cx - 10, y: cy - 8 },
+          ],
+          true,
+        );
+        g.fillStyle(color, 1);
+        g.fillPoints(
+          [
+            { x: cx, y: cy - 10 },
+            { x: cx + 7, y: cy - 6 },
+            { x: cx + 7, y: cy + 3 },
+            { x: cx, y: cy + 11 },
+            { x: cx - 7, y: cy + 3 },
+            { x: cx - 7, y: cy - 6 },
+          ],
+          true,
+        );
+        break;
+      case "droplet":
+        g.fillStyle(color, 1);
+        g.fillTriangle(cx - 6, cy + 2, cx + 6, cy + 2, cx, cy - 12);
+        g.fillCircle(cx, cy + 3, 7);
+        break;
+      case "boltOrb":
+        g.fillStyle(0x1c2a4a, 1);
+        g.fillCircle(cx, cy, 12);
+        g.fillStyle(color, 0.85);
+        g.fillCircle(cx, cy, 10);
+        g.fillStyle(0xffe98a, 1);
+        g.fillPoints(
+          [
+            { x: cx + 2, y: cy - 9 },
+            { x: cx - 4, y: cy + 1 },
+            { x: cx - 1, y: cy + 1 },
+            { x: cx - 3, y: cy + 9 },
+            { x: cx + 5, y: cy - 1 },
+            { x: cx + 1, y: cy - 1 },
+          ],
+          true,
+        );
+        break;
+      case "target":
+        g.lineStyle(3, color, 1);
+        g.strokeCircle(cx, cy, 11);
+        g.lineStyle(2, color, 1);
+        g.strokeCircle(cx, cy, 6);
+        g.fillStyle(color, 1);
+        g.fillCircle(cx, cy, 2);
+        break;
+      case "clock":
+        g.fillStyle(0x2a2a35, 1);
+        g.fillCircle(cx, cy, 12);
+        g.lineStyle(2, color, 1);
+        g.strokeCircle(cx, cy, 12);
+        g.lineBetween(cx, cy, cx, cy - 7);
+        g.lineBetween(cx, cy, cx + 5, cy + 3);
+        g.fillStyle(color, 1);
+        g.fillCircle(cx, cy, 1.5);
+        break;
+      case "spiral": {
+        g.lineStyle(3, color, 1);
+        g.beginPath();
+        g.arc(cx, cy, 9, Phaser.Math.DegToRad(-40), Phaser.Math.DegToRad(230), false);
+        g.strokePath();
+        const endAngle = Phaser.Math.DegToRad(230);
+        const ex = cx + 9 * Math.cos(endAngle);
+        const ey = cy + 9 * Math.sin(endAngle);
+        g.fillStyle(color, 1);
+        g.save();
+        g.translateCanvas(ex, ey);
+        g.rotateCanvas(endAngle);
+        g.fillTriangle(-4, -3, 4, 0, -4, 3);
+        g.restore();
+        break;
+      }
+      case "pierceArrow":
+        g.fillStyle(0x4a4a58, 1);
+        g.fillCircle(cx - 7, cy, 4);
+        g.fillCircle(cx + 2, cy, 4);
+        g.fillCircle(cx + 9, cy, 3);
+        g.lineStyle(3, color, 1);
+        g.lineBetween(cx - 13, cy, cx + 11, cy);
+        g.fillStyle(color, 1);
+        g.fillTriangle(cx + 8, cy - 4, cx + 8, cy + 4, cx + 15, cy);
+        break;
+      case "burst":
+        g.fillStyle(0x2a2a35, 1);
+        g.fillRect(cx - 12, cy - 3, 8, 6);
+        g.fillStyle(color, 1);
+        for (const [dx, dy] of [
+          [6, -8],
+          [10, -3],
+          [11, 2],
+          [8, 7],
+          [4, 10],
+        ]) {
+          g.fillCircle(cx + dx, cy + dy, 2.2);
+        }
+        break;
+      case "flame":
+        g.fillStyle(0xb91c1c, 1);
+        g.fillTriangle(cx, cy - 13, cx - 7, cy + 11, cx + 7, cy + 11);
+        g.fillStyle(color, 1);
+        g.fillTriangle(cx, cy - 7, cx - 4, cy + 10, cx + 4, cy + 10);
+        g.fillStyle(0xffe08a, 1);
+        g.fillTriangle(cx, cy - 1, cx - 2, cy + 9, cx + 2, cy + 9);
+        break;
+      case "splitBullets":
+        g.fillStyle(0x2a2a35, 1);
+        g.fillRect(cx - 3, cy + 3, 7, 6);
+        g.fillStyle(color, 1);
+        for (const deg of [-18, 18]) {
+          g.save();
+          g.translateCanvas(cx, cy + 3);
+          g.rotateCanvas(Phaser.Math.DegToRad(deg));
+          g.fillTriangle(-3, 0, 3, 0, 0, -15);
+          g.restore();
+        }
+        break;
+      case "skull":
+        g.fillStyle(color, 1);
+        g.fillCircle(cx, cy - 2, 9);
+        g.fillRect(cx - 6, cy + 3, 12, 6);
+        g.fillStyle(0x1c1c26, 1);
+        g.fillCircle(cx - 4, cy - 3, 2.2);
+        g.fillCircle(cx + 4, cy - 3, 2.2);
+        g.fillRect(cx - 5, cy + 5, 2, 3);
+        g.fillRect(cx - 1, cy + 5, 2, 3);
+        g.fillRect(cx + 3, cy + 5, 2, 3);
+        break;
+      case "gleamBlade":
+        g.fillStyle(0x8a5a2b, 1);
+        g.fillRect(cx - 2, cy + 5, 4, 9);
+        g.fillStyle(color, 1);
+        g.fillTriangle(cx - 5, cy + 5, cx + 5, cy + 5, cx, cy - 13);
+        g.lineStyle(1, 0xffffff, 0.75);
+        g.lineBetween(cx - 6, cy - 2, cx + 7, cy - 6);
+        break;
+      case "wideBlade":
+        g.lineStyle(1, color, 0.35);
+        g.beginPath();
+        g.arc(cx, cy + 1, 14, Phaser.Math.DegToRad(-75), Phaser.Math.DegToRad(75));
+        g.strokePath();
+        g.fillStyle(0x8a5a2b, 1);
+        g.fillRect(cx - 2, cy + 4, 4, 10);
+        g.fillStyle(color, 1);
+        g.fillTriangle(cx - 7, cy + 4, cx + 7, cy + 4, cx, cy - 11);
+        break;
+      case "battery":
+        g.fillStyle(0x2a2a35, 1);
+        g.fillRect(cx - 9, cy - 7, 18, 14);
+        g.fillRect(cx + 9, cy - 3, 3, 6);
+        g.fillStyle(color, 1);
+        g.fillRect(cx - 7, cy - 5, 13, 10);
+        break;
+      case "orb":
+        g.fillStyle(0x1c2a4a, 1);
+        g.fillCircle(cx, cy, 11);
+        g.fillStyle(color, 0.9);
+        g.fillCircle(cx, cy, 9);
+        g.fillStyle(0xffffff, 0.55);
+        g.fillCircle(cx - 3, cy - 3, 3);
+        break;
+      case "hourglass":
+        g.fillStyle(0x2a2a35, 1);
+        g.fillRect(cx - 8, cy - 12, 16, 3);
+        g.fillRect(cx - 8, cy + 9, 16, 3);
+        g.fillStyle(color, 1);
+        g.fillTriangle(cx - 7, cy - 9, cx + 7, cy - 9, cx, cy);
+        g.fillTriangle(cx - 7, cy + 9, cx + 7, cy + 9, cx, cy);
+        break;
+      case "tag":
+        g.fillStyle(color, 1);
+        g.fillPoints(
+          [
+            { x: cx - 10, y: cy - 2 },
+            { x: cx - 1, y: cy - 11 },
+            { x: cx + 11, y: cy - 11 },
+            { x: cx + 11, y: cy + 1 },
+            { x: cx - 1, y: cy + 10 },
+          ],
+          true,
+        );
+        g.fillStyle(0x1c1c26, 1);
+        g.fillCircle(cx + 6, cy - 7, 2);
+        break;
+      case "bladeShield":
+        g.fillStyle(0x2a3a42, 0.9);
+        g.fillPoints(
+          [
+            { x: cx + 3, y: cy - 11 },
+            { x: cx + 11, y: cy - 7 },
+            { x: cx + 11, y: cy + 3 },
+            { x: cx + 3, y: cy + 12 },
+            { x: cx - 5, y: cy + 3 },
+            { x: cx - 5, y: cy - 7 },
+          ],
+          true,
+        );
+        g.fillStyle(0x8a5a2b, 1);
+        g.fillRect(cx - 9, cy + 3, 4, 9);
+        g.fillStyle(color, 1);
+        g.fillTriangle(cx - 12, cy + 3, cx - 2, cy + 3, cx - 7, cy - 11);
+        g.lineStyle(1, 0xffffff, 0.5);
+        g.lineBetween(cx - 10, cy - 2, cx - 4, cy - 6);
         break;
     }
 
