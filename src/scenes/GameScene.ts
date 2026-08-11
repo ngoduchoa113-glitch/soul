@@ -99,6 +99,7 @@ export class GameScene extends Phaser.Scene {
   private dashHitSet = new Set<Combatant>();
   private floor = 1;
   private stage = 1;
+  private killCount = 0;
   private isPaused = false;
   private pauseOverlay!: Phaser.GameObjects.Container;
 
@@ -439,6 +440,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleEntityDeath(entity: Enemy | Boss): void {
+    this.killCount++;
     if (entity instanceof Boss) {
       this.spawnEnergyPickup(entity.x, entity.y, BOSS_ENERGY_DROP_AMOUNT);
       this.spawnCoinPickup(entity.x, entity.y, BOSS_COIN_DROP_AMOUNT);
@@ -1276,7 +1278,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.player.playerState === "DEAD") {
-      this.hud.showDeath();
+      this.hud.showDeath(this.killCount, this.floor, this.stage, () => this.quitToMenu());
     }
   }
 }
