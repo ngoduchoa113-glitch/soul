@@ -17,62 +17,37 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-const FLOOR = {
-  base: 0x1c1c26,
-  darkSpeck: 0x101016,
-  lightSpeck: 0x2a2a35,
-  crack: 0x0c0c10,
-};
-
-/** Paints one seeded 32x32 floor cell at (ox, oy) — base fill + a handful of hard-edged 1px speckles and an occasional short crack. Kept sparse so it reads as texture, not noise. */
-function paintFloorCell(g: Phaser.GameObjects.Graphics, ox: number, oy: number, seed: number): void {
-  const rand = seededRandom(seed);
-  g.fillStyle(FLOOR.base, 1);
-  g.fillRect(ox, oy, TILE, TILE);
-
-  const speckCount = 4 + Math.floor(rand() * 4); // 4-7, deliberately sparse
-  for (let i = 0; i < speckCount; i++) {
-    const px = ox + Math.floor(rand() * TILE);
-    const py = oy + Math.floor(rand() * TILE);
-    const light = rand() > 0.5;
-    g.fillStyle(light ? FLOOR.lightSpeck : FLOOR.darkSpeck, light ? 0.5 : 0.55);
-    g.fillRect(px, py, 1, 1);
-  }
-
-  if (rand() < 0.3) {
-    const horizontal = rand() > 0.5;
-    const len = 2 + Math.floor(rand() * 2);
-    const cx = ox + 4 + Math.floor(rand() * (TILE - 8));
-    const cy = oy + 4 + Math.floor(rand() * (TILE - 8));
-    g.fillStyle(FLOOR.crack, 0.45);
-    g.fillRect(cx, cy, horizontal ? len : 1, horizontal ? 1 : len);
-  }
-
-  // Hairline seam along two edges — hard-edged, reads as separate flagstones rather than one slab.
-  g.fillStyle(0x000000, 0.08);
-  g.fillRect(ox, oy, TILE, 1);
-  g.fillRect(ox, oy, 1, TILE);
-}
-
 const SUPERTILE_CELLS = 8;
 const SUPERTILE_SIZE = SUPERTILE_CELLS * TILE;
 
 /**
- * Builds one big seamlessly-repeating "supertile" (8x8 grid of individually-seeded 32px cells)
- * and registers it under `key`. `Room.buildFloor`/`Dungeon.buildCorridorFloor` paint the dungeon
- * floor as a single `tileSprite` referencing one texture key — using a 256px supertile instead of
- * a 32px tile here means the repeat period is 8x larger, so the eye doesn't pick up on the tiling,
- * with zero changes needed to how the floor is placed.
+ * Builds one big seamlessly-repeating "supertile" (8x8 grid of 32px cells, each stamped with a
+ * randomly-picked pre-loaded floor tile image) and registers it under `key`.
+ * `Room.buildFloor`/`Dungeon.buildCorridorFloor` paint the dungeon floor as a single `tileSprite`
+ * referencing one texture key — using a 256px supertile instead of a 32px tile here means the
+ * repeat period is 8x larger, so the eye doesn't pick up on the tiling, with zero changes needed
+ * to how the floor is placed. Call once real art (`sourceKeys`) has finished loading, i.e. from
+ * a scene's `create()`, not `preload()`.
  */
-export function generateFloorSupertile(scene: Phaser.Scene, key: string, baseSeed = 1337): void {
-  const g = scene.make.graphics({ x: 0, y: 0 });
+export function generateFloorSupertileFromArt(
+  scene: Phaser.Scene,
+  key: string,
+  sourceKeys: string[],
+  baseSeed = 1337,
+): void {
+  const canvasTexture = scene.textures.createCanvas(key, SUPERTILE_SIZE, SUPERTILE_SIZE);
+  if (!canvasTexture) return;
+  const ctx = canvasTexture.context;
+  ctx.imageSmoothingEnabled = false;
+  const rand = seededRandom(baseSeed);
   for (let row = 0; row < SUPERTILE_CELLS; row++) {
     for (let col = 0; col < SUPERTILE_CELLS; col++) {
-      paintFloorCell(g, col * TILE, row * TILE, baseSeed + row * SUPERTILE_CELLS + col);
+      const sourceKey = sourceKeys[Math.floor(rand() * sourceKeys.length)];
+      const source = scene.textures.get(sourceKey).getSourceImage() as HTMLImageElement;
+      ctx.drawImage(source, col * TILE, row * TILE, TILE, TILE);
     }
   }
-  g.generateTexture(key, SUPERTILE_SIZE, SUPERTILE_SIZE);
-  g.destroy();
+  canvasTexture.refresh();
 }
 
 /** Wall texture variants — Room/Dungeon pick randomly from these per tile instead of always using one key, so a run of wall tiles doesn't look like the same stamp repeated. */

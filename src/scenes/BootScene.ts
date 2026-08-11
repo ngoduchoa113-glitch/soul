@@ -2,8 +2,9 @@ import Phaser from "phaser";
 import { WEAPONS } from "../data/weapons";
 import { DECOR_ASSETS, OBSTACLE_CLUSTER_ASSETS, OBSTACLE_TREE_ASSETS } from "../data/decor";
 import { WEAPON_ART_OVERRIDES, WEAPON_ICON_SHAPES, type WeaponIconShape } from "../data/weaponIcons";
+import { FLOOR_TILE_ASSETS } from "../data/floorTiles";
 import { ALL_CREATURE_SPRITE_SHEETS } from "../data/creatureSprites";
-import { WALL_KEYS, generateBeveledTile, generateFloorSupertile, generateWallTile } from "./tileTextures";
+import { WALL_KEYS, generateBeveledTile, generateFloorSupertileFromArt, generateWallTile } from "./tileTextures";
 
 /**
  * Loads real art (characters, monsters, obstacles, decor) and builds animations for it, plus
@@ -21,9 +22,9 @@ export class BootScene extends Phaser.Scene {
     for (const sheet of ALL_CREATURE_SPRITE_SHEETS) {
       this.load.spritesheet(sheet.key, sheet.path, { frameWidth: sheet.frameWidth, frameHeight: sheet.frameHeight });
     }
+    for (const tile of FLOOR_TILE_ASSETS) this.load.image(tile.key, tile.path);
 
     this.createCircleTexture("projectile", 5, 0xf6e05e);
-    generateFloorSupertile(this, "floor");
     WALL_KEYS.forEach((key, i) => generateWallTile(this, key, 4000 + i * 97));
     generateBeveledTile(this, "chest", 24, 20, 0xd4a017, 0xffe27a, 0x8a5a0a);
     generateBeveledTile(this, "door", 32, 32, 0x8a5a2b, 0xb07a42, 0x4a2e14);
@@ -67,6 +68,11 @@ export class BootScene extends Phaser.Scene {
     for (const [id, art] of Object.entries(WEAPON_ART_OVERRIDES)) {
       this.bakeArtIcon(`weapon-icon-${id}`, art.loadKey);
     }
+    generateFloorSupertileFromArt(
+      this,
+      "floor",
+      FLOOR_TILE_ASSETS.map((tile) => tile.key),
+    );
 
     this.scene.start("MainMenuScene");
   }
