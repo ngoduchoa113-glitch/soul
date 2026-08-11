@@ -16,14 +16,19 @@ import type { Combatant } from "../entities/Combatant";
 import type { EntityVfx } from "../entities/Boss";
 import { DECOR_ASSETS, OBSTACLE_CLUSTER_ASSETS, OBSTACLE_TREE_ASSETS, type ObstacleAsset } from "../data/decor";
 import { WALL_KEYS } from "../scenes/tileTextures";
-import { paintRockCell } from "./rockBorder";
+import { paintWallStrip, wallRuns } from "./wallVisuals";
 
 const TILE = 32;
 
 /** Obstacles keep this much clearance from the walls/doors and from the room center (chest/boss/shop spawn point). */
 const OBSTACLE_WALL_MARGIN = 128;
-const OBSTACLE_CENTER_CLEARANCE = 90;
-const OBSTACLE_MIN_SPACING = 90;
+const OBSTACLE_CENTER_CLEARANCE = 120;
+const OBSTACLE_MIN_SPACING = 130;
+
+/** Chance a scattered obstacle/decor pick anchors near one of the room's 4 corners instead of anywhere in the room — corners read as "deliberately placed clutter" rather than a uniform scatter. */
+const CORNER_BIAS_CHANCE = 0.7;
+/** How far a corner-anchored pick can drift from its corner, so a room's 4 corners don't all look like an identical stamp. */
+const CORNER_JITTER = 70;
 
 /**
  * Relative (grid-cell) offsets for small connected obstacle formations — a "pillar" roll places
@@ -279,8 +284,9 @@ export class Room {
    * Dungeon at the same coordinates/GAP_INDICES) owns those tiles instead.
    *
    * Each cell's collision sprite is invisible (the procedural wall texture stays only as the
-   * physics body's shape) — the visible wall is a rock-clump image painted on top by
-   * paintRockCell, which overlaps neighboring cells so the border reads as one jagged ridge.
+   * physics body's shape) — the visible wall is the direction-matched aligned art (wall_top for
+   * north, wall_bottom for south, wall_left for west, wall_right for east) painted as one
+   * continuous strip per run by paintWallStrip, split around any door gap by wallRuns.
    */
   private buildWalls(group: Phaser.Physics.Arcade.StaticGroup, openSides: Set<Direction>): void {
     const cols = this.rect.width / TILE;
@@ -292,13 +298,11 @@ export class Room {
         const x = this.rect.x + c * TILE + TILE / 2;
         const y = this.rect.y + TILE / 2;
         group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(this.scene, x, y, false);
       }
       if (!(openSides.has("south") && gapSet.has(c))) {
         const x = this.rect.x + c * TILE + TILE / 2;
         const y = this.rect.y + this.rect.height - TILE / 2;
         group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(this.scene, x, y, false);
       }
     }
 
@@ -307,14 +311,25 @@ export class Room {
         const x = this.rect.x + TILE / 2;
         const y = this.rect.y + r * TILE + TILE / 2;
         group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(this.scene, x, y, true);
       }
       if (!(openSides.has("east") && gapSet.has(r))) {
         const x = this.rect.x + this.rect.width - TILE / 2;
         const y = this.rect.y + r * TILE + TILE / 2;
         group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(this.scene, x, y, true);
       }
+    }
+
+    for (const [start, end] of wallRuns(cols, openSides.has("north"))) {
+      paintWallStrip(this.scene, "north", this.rect.x + start * TILE, (end - start) * TILE, this.rect.y + TILE);
+    }
+    for (const [start, end] of wallRuns(cols, openSides.has("south"))) {
+      paintWallStrip(this.scene, "south", this.rect.x + start * TILE, (end - start) * TILE, this.rect.y + this.rect.height - TILE);
+    }
+    for (const [start, end] of wallRuns(rows, openSides.has("west"))) {
+      paintWallStrip(this.scene, "west", this.rect.y + start * TILE, (end - start) * TILE, this.rect.x + TILE);
+    }
+    for (const [start, end] of wallRuns(rows, openSides.has("east"))) {
+      paintWallStrip(this.scene, "east", this.rect.y + start * TILE, (end - start) * TILE, this.rect.x + this.rect.width - TILE);
     }
   }
 
@@ -333,13 +348,12 @@ export class Room {
 
     if (this.type !== "normal" && this.type !== "elite") return;
 
-    const count = this.type === "elite" ? 3 : Phaser.Math.RND.between(2, 4);
+    const count = this.type === "elite" ? 4 : Phaser.Math.RND.between(3, 5);
     const placed: { x: number; y: number }[] = [];
     let guard = 0;
     while (placed.length < count && guard < count * 20) {
       guard++;
-      const x = Phaser.Math.RND.between(this.rect.x + OBSTACLE_WALL_MARGIN, this.rect.x + this.rect.width - OBSTACLE_WALL_MARGIN);
-      const y = Phaser.Math.RND.between(this.rect.y + OBSTACLE_WALL_MARGIN, this.rect.y + this.rect.height - OBSTACLE_WALL_MARGIN);
+      const { x, y } = this.randomCornerBiasedPoint(OBSTACLE_WALL_MARGIN);
       if (Phaser.Math.Distance.Between(x, y, this.centerX, this.centerY) < OBSTACLE_CENTER_CLEARANCE) continue;
       if (placed.some((p) => Phaser.Math.Distance.Between(x, y, p.x, p.y) < OBSTACLE_MIN_SPACING)) continue;
 
@@ -397,6 +411,33 @@ export class Room {
     return { x: Phaser.Math.Clamp(x, minX, maxX), y: Phaser.Math.Clamp(y, minY, maxY) };
   }
 
+  /**
+   * Rolls a point for scattered obstacle/decor placement, `margin` clear of every wall. Most rolls
+   * (CORNER_BIAS_CHANCE) anchor near one of the room's 4 corners with some jitter so clutter reads
+   * as deliberately piled into corners — matching how these props collect in a real room — instead
+   * of an even scatter; the rest fall back to a uniform pick for variety in the middle of the room.
+   */
+  private randomCornerBiasedPoint(margin: number): { x: number; y: number } {
+    const minX = this.rect.x + margin;
+    const maxX = this.rect.x + this.rect.width - margin;
+    const minY = this.rect.y + margin;
+    const maxY = this.rect.y + this.rect.height - margin;
+
+    if (Phaser.Math.RND.frac() < CORNER_BIAS_CHANCE) {
+      const corner = Phaser.Math.RND.pick([
+        { cx: minX, cy: minY },
+        { cx: maxX, cy: minY },
+        { cx: minX, cy: maxY },
+        { cx: maxX, cy: maxY },
+      ]);
+      const x = Phaser.Math.Clamp(corner.cx + Phaser.Math.RND.between(-CORNER_JITTER, CORNER_JITTER), minX, maxX);
+      const y = Phaser.Math.Clamp(corner.cy + Phaser.Math.RND.between(-CORNER_JITTER, CORNER_JITTER), minY, maxY);
+      return { x, y };
+    }
+
+    return { x: Phaser.Math.RND.between(minX, maxX), y: Phaser.Math.RND.between(minY, maxY) };
+  }
+
   /** Creates one obstacle sprite and resizes its static body to the asset's display size — the source art has transparent padding, so the raw texture bounds don't match the intended footprint. */
   private placeObstacleCell(x: number, y: number, group: Phaser.Physics.Arcade.StaticGroup, asset: ObstacleAsset): void {
     const obstacle = group.create(x, y, asset.key) as Phaser.Physics.Arcade.Sprite;
@@ -412,11 +453,10 @@ export class Room {
   private scatterDecor(): void {
     if (this.type !== "normal" && this.type !== "elite" && this.type !== "boss") return;
 
-    const count = Phaser.Math.RND.between(3, 6);
+    const count = Phaser.Math.RND.between(6, 10);
     const margin = 64;
     for (let i = 0; i < count; i++) {
-      const x = Phaser.Math.RND.between(this.rect.x + margin, this.rect.x + this.rect.width - margin);
-      const y = Phaser.Math.RND.between(this.rect.y + margin, this.rect.y + this.rect.height - margin);
+      const { x, y } = this.randomCornerBiasedPoint(margin);
       if (Phaser.Math.Distance.Between(x, y, this.centerX, this.centerY) < OBSTACLE_CENTER_CLEARANCE) continue;
 
       const asset = Phaser.Math.RND.pick(DECOR_ASSETS);

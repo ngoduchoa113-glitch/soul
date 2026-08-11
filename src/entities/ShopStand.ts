@@ -20,9 +20,11 @@ export class ShopStand extends Phaser.GameObjects.Sprite {
   items: ShopItem[];
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, "shop");
+    super(scene, x, y, "shop-keeper");
     scene.add.existing(this);
     this.setDepth(6);
+    this.setDisplaySize(112, 112);
+    this.play("shop-keeper");
 
     const weaponIds = Phaser.Utils.Array.Shuffle([...ALL_WEAPON_IDS]).slice(0, WEAPON_OFFER_COUNT);
 

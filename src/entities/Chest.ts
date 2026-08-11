@@ -26,16 +26,18 @@ export class Chest extends Phaser.GameObjects.Sprite {
   private roomType: RoomType;
 
   constructor(scene: Phaser.Scene, x: number, y: number, roomType: RoomType) {
-    super(scene, x, y, "chest");
+    super(scene, x, y, "chest-closed");
     scene.add.existing(this);
     this.roomType = roomType;
     this.setDepth(6);
+    this.setDisplaySize(32, 32);
   }
 
+  /** Called only from GameScene.updateChestAutoOpen, which gates this on the player actually touching the chest (CHEST_TOUCH_RADIUS) — never on proximity alone. */
   open(): ChestReward | null {
     if (this.opened) return null;
     this.opened = true;
-    this.setTint(0x888888);
+    this.setTexture("chest-open");
 
     const table = ROLL_TABLES[this.roomType === "elite" ? "elite" : "normal"];
     const roll = Math.random();
