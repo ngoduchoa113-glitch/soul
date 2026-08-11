@@ -33,7 +33,7 @@ export const BOSS_DEFS: Record<string, BossDef> = {
   guardian: {
     id: "guardian",
     name: "Dungeon Guardian",
-    hp: 550,
+    hp: 5500,
     damage: 20,
     speed: 100,
     detectRadius: 400,
@@ -58,7 +58,7 @@ export const BOSS_DEFS: Record<string, BossDef> = {
   sentinel: {
     id: "sentinel",
     name: "Arcane Sentinel",
-    hp: 420,
+    hp: 4200,
     damage: 16,
     speed: 130,
     detectRadius: 420,
