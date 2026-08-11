@@ -114,9 +114,9 @@ export class Dungeon {
       for (let c = 0; c < (x1 - x0) / TILE; c++) {
         const cx = x0 + c * TILE + TILE / 2;
         this.collidables.create(cx, y0 - TILE / 2, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(scene, cx, y0 - TILE / 2, true);
+        paintRockCell(scene, cx, y0 - TILE / 2, false);
         this.collidables.create(cx, y1 + TILE / 2, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(scene, cx, y1 + TILE / 2, true);
+        paintRockCell(scene, cx, y1 + TILE / 2, false);
       }
 
       const door = new Door(this.collidables, (x0 + x1) / 2, "h", originY);
@@ -135,9 +135,9 @@ export class Dungeon {
       for (let r = 0; r < (y1 - y0) / TILE; r++) {
         const cy = y0 + r * TILE + TILE / 2;
         this.collidables.create(x0 - TILE / 2, cy, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(scene, x0 - TILE / 2, cy, false);
+        paintRockCell(scene, x0 - TILE / 2, cy, true);
         this.collidables.create(x1 + TILE / 2, cy, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(scene, x1 + TILE / 2, cy, false);
+        paintRockCell(scene, x1 + TILE / 2, cy, true);
       }
 
       const door = new Door(this.collidables, (y0 + y1) / 2, "v", originX);

@@ -292,13 +292,13 @@ export class Room {
         const x = this.rect.x + c * TILE + TILE / 2;
         const y = this.rect.y + TILE / 2;
         group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(this.scene, x, y, true);
+        paintRockCell(this.scene, x, y, false);
       }
       if (!(openSides.has("south") && gapSet.has(c))) {
         const x = this.rect.x + c * TILE + TILE / 2;
         const y = this.rect.y + this.rect.height - TILE / 2;
         group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(this.scene, x, y, true);
+        paintRockCell(this.scene, x, y, false);
       }
     }
 
@@ -307,13 +307,13 @@ export class Room {
         const x = this.rect.x + TILE / 2;
         const y = this.rect.y + r * TILE + TILE / 2;
         group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(this.scene, x, y, false);
+        paintRockCell(this.scene, x, y, true);
       }
       if (!(openSides.has("east") && gapSet.has(r))) {
         const x = this.rect.x + this.rect.width - TILE / 2;
         const y = this.rect.y + r * TILE + TILE / 2;
         group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
-        paintRockCell(this.scene, x, y, false);
+        paintRockCell(this.scene, x, y, true);
       }
     }
   }
