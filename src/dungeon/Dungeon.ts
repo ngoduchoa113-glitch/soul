@@ -6,6 +6,8 @@ import type { Chest } from "../entities/Chest";
 import type { ShopStand } from "../entities/ShopStand";
 import type { Portal } from "../entities/Portal";
 import type { EntityVfx } from "../entities/Boss";
+import { WALL_KEYS } from "../scenes/tileTextures";
+import { paintRockCell } from "./rockBorder";
 
 const TILE = 32;
 
@@ -18,8 +20,13 @@ function directionBetween(from: RoomLayout, to: RoomLayout): Direction {
 
 export class Dungeon {
   readonly rooms: Room[];
+  readonly edges: StageEdge[];
   readonly collidables: Phaser.Physics.Arcade.StaticGroup;
   readonly enemies: Phaser.Physics.Arcade.Group;
+  /** Walkable hazards (spike traps) — not blocking, just overlap-damage. */
+  readonly hazards: Phaser.Physics.Arcade.StaticGroup;
+  /** Solid obstacles that react to being shot (TNT crates, poison barrels). */
+  readonly destructibles: Phaser.Physics.Arcade.StaticGroup;
   readonly worldWidth: number;
   readonly worldHeight: number;
 
@@ -32,9 +39,12 @@ export class Dungeon {
     vfx?: EntityVfx,
   ) {
     const layout = generateStageLayout(seed, kind);
+    this.edges = layout.edges;
 
     this.collidables = scene.physics.add.staticGroup();
     this.enemies = scene.physics.add.group({ runChildUpdate: false });
+    this.hazards = scene.physics.add.staticGroup();
+    this.destructibles = scene.physics.add.staticGroup();
 
     this.worldWidth = Math.max(...layout.rooms.map((r) => r.rect.x + r.rect.width));
     this.worldHeight = Math.max(...layout.rooms.map((r) => r.rect.y + r.rect.height));
@@ -55,6 +65,8 @@ export class Dungeon {
           roomLayout,
           this.collidables,
           this.enemies,
+          this.hazards,
+          this.destructibles,
           openSidesByIndex.get(roomLayout.index)!,
           enemyCallbacks,
           onBossCleared,
@@ -101,8 +113,10 @@ export class Dungeon {
       this.buildCorridorFloor(scene, x0, y0, x1 - x0, y1 - y0);
       for (let c = 0; c < (x1 - x0) / TILE; c++) {
         const cx = x0 + c * TILE + TILE / 2;
-        this.collidables.create(cx, y0 - TILE / 2, "wall");
-        this.collidables.create(cx, y1 + TILE / 2, "wall");
+        this.collidables.create(cx, y0 - TILE / 2, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(scene, cx, y0 - TILE / 2, false);
+        this.collidables.create(cx, y1 + TILE / 2, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(scene, cx, y1 + TILE / 2, false);
       }
 
       const door = new Door(this.collidables, (x0 + x1) / 2, "h", originY);
@@ -120,8 +134,10 @@ export class Dungeon {
       this.buildCorridorFloor(scene, x0, y0, x1 - x0, y1 - y0);
       for (let r = 0; r < (y1 - y0) / TILE; r++) {
         const cy = y0 + r * TILE + TILE / 2;
-        this.collidables.create(x0 - TILE / 2, cy, "wall");
-        this.collidables.create(x1 + TILE / 2, cy, "wall");
+        this.collidables.create(x0 - TILE / 2, cy, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(scene, x0 - TILE / 2, cy, true);
+        this.collidables.create(x1 + TILE / 2, cy, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(scene, x1 + TILE / 2, cy, true);
       }
 
       const door = new Door(this.collidables, (y0 + y1) / 2, "v", originX);

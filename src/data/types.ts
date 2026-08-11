@@ -21,7 +21,9 @@ export type EnemyAIState =
   | "DETECT"
   | "CHASE"
   | "ATTACK"
-  | "COOLDOWN";
+  | "COOLDOWN"
+  | "TELEGRAPH"
+  | "EXECUTING";
 
 export type RoomType = "normal" | "elite" | "shop" | "boss" | "rest" | "gate" | "trophy";
 

@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import { LoadingScene } from "./scenes/LoadingScene";
 import { BootScene } from "./scenes/BootScene";
 import { MainMenuScene } from "./scenes/MainMenuScene";
 import { CharacterSelectScene } from "./scenes/CharacterSelectScene";
@@ -44,6 +43,10 @@ const config: Phaser.Types.Core.GameConfig = {
   width: 960,
   height: 640,
   backgroundColor: "#111111",
+  pixelArt: true,
+  // Explicit alongside pixelArt — zoom isn't an integer factor (1.5x), so snapping to whole
+  // device pixels each frame keeps tile/sprite edges crisp instead of shimmering as they move.
+  render: { roundPixels: true },
   physics: {
     default: "arcade",
     arcade: {
@@ -51,12 +54,31 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [LoadingScene, BootScene, MainMenuScene, CharacterSelectScene, GameScene],
+  scene: [BootScene, MainMenuScene, CharacterSelectScene, GameScene],
   disableContextMenu: true,
 };
 
-const game = new Phaser.Game(config);
-
-if (import.meta.env.DEV) {
-  (window as unknown as { game: Phaser.Game }).game = game;
+/**
+ * Wait for the pixel webfonts to actually be loaded before Phaser starts drawing text — without
+ * this, the first frame (and any Text object created before the async font swap lands) renders in
+ * the fallback font and never gets re-measured/redrawn by Phaser. `.load()` on an unreachable/
+ * offline font rejects rather than hanging, so this always resolves — worst case, text stays on
+ * the CSS fallback stack.
+ */
+async function waitForFonts(): Promise<void> {
+  try {
+    await Promise.all([document.fonts.load('16px "Press Start 2P"'), document.fonts.load('16px "VT323"')]);
+  } catch {
+    // Offline or blocked — non-fatal, text falls back to the monospace stack in textStyles.ts.
+  }
 }
+
+async function boot(): Promise<void> {
+  await waitForFonts();
+  const game = new Phaser.Game(config);
+  if (import.meta.env.DEV) {
+    (window as unknown as { game: Phaser.Game }).game = game;
+  }
+}
+
+void boot();

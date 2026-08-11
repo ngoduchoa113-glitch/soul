@@ -2,13 +2,23 @@ import type { RoomType } from "../data/types";
 
 const TILE = 32;
 
-export const ROOM_WIDTH = 768;
-export const ROOM_HEIGHT = 576;
+/**
+ * Room dimensions are randomized per room within these bounds (see randomRoomSize), but every
+ * room is still anchored to its grid cell's top-left corner (col*COL_PITCH, row*ROW_PITCH) rather
+ * than centered — that's what keeps door alignment correct without extra bookkeeping: any two
+ * rooms sharing a column always share the same rect.x, and any two sharing a row always share the
+ * same rect.y, which is exactly what Dungeon.ts's corridor/door placement assumes. The pitch is
+ * sized to the max room dimension so the largest possible room never eats into the corridor gap.
+ */
+const MIN_ROOM_WIDTH = 640;
+const MAX_ROOM_WIDTH = 960;
+const MIN_ROOM_HEIGHT = 480;
+const MAX_ROOM_HEIGHT = 704;
 /** Length (in tiles) of the corridor strip Dungeon.ts builds between two connected rooms. */
 export const CORRIDOR_LEN = 4;
 
-const COL_PITCH = ROOM_WIDTH + CORRIDOR_LEN * TILE;
-const ROW_PITCH = ROOM_HEIGHT + CORRIDOR_LEN * TILE;
+const COL_PITCH = MAX_ROOM_WIDTH + CORRIDOR_LEN * TILE;
+const ROW_PITCH = MAX_ROOM_HEIGHT + CORRIDOR_LEN * TILE;
 
 export type StageKind = "regular" | "boss" | "trophy";
 
@@ -128,19 +138,26 @@ function pickGateIndex(cells: Cell[], edges: StageEdge[]): number {
   return pool[0].index;
 }
 
-function toRoomLayouts(cells: Cell[], types: RoomType[]): RoomLayout[] {
+function randomRoomSize(random: () => number): { width: number; height: number } {
+  const widthTiles = Math.round((MIN_ROOM_WIDTH + random() * (MAX_ROOM_WIDTH - MIN_ROOM_WIDTH)) / TILE);
+  const heightTiles = Math.round((MIN_ROOM_HEIGHT + random() * (MAX_ROOM_HEIGHT - MIN_ROOM_HEIGHT)) / TILE);
+  return { width: widthTiles * TILE, height: heightTiles * TILE };
+}
+
+function toRoomLayouts(cells: Cell[], types: RoomType[], random: () => number, maxSizeTypes: Set<RoomType> = new Set()): RoomLayout[] {
   const minCol = Math.min(...cells.map((c) => c.col));
   const minRow = Math.min(...cells.map((c) => c.row));
 
   return cells.map((cell, i) => {
     const col = cell.col - minCol;
     const row = cell.row - minRow;
+    const size = maxSizeTypes.has(types[i]) ? { width: MAX_ROOM_WIDTH, height: MAX_ROOM_HEIGHT } : randomRoomSize(random);
     return {
       index: i,
       type: types[i],
       col,
       row,
-      rect: { x: col * COL_PITCH, y: row * ROW_PITCH, width: ROOM_WIDTH, height: ROOM_HEIGHT },
+      rect: { x: col * COL_PITCH, y: row * ROW_PITCH, width: size.width, height: size.height },
     };
   });
 }
@@ -158,7 +175,10 @@ export function generateStageLayout(seed: string, kind: StageKind): StageLayout 
   const random = mulberry32(hashSeed(seed));
 
   if (kind === "trophy") {
-    return { rooms: [{ index: 0, type: "trophy", col: 0, row: 0, rect: { x: 0, y: 0, width: ROOM_WIDTH, height: ROOM_HEIGHT } }], edges: [] };
+    return {
+      rooms: [{ index: 0, type: "trophy", col: 0, row: 0, rect: { x: 0, y: 0, width: MAX_ROOM_WIDTH, height: MAX_ROOM_HEIGHT } }],
+      edges: [],
+    };
   }
 
   if (kind === "boss") {
@@ -167,7 +187,8 @@ export function generateStageLayout(seed: string, kind: StageKind): StageLayout 
       { col: 1, row: 0, index: 1 },
     ];
     const edges: StageEdge[] = [{ a: 0, b: 1, axis: "h" }];
-    return { rooms: toRoomLayouts(cells, ["rest", "boss"]), edges };
+    // Boss rooms always get the max arena size — dense bullet patterns need the room to dodge in.
+    return { rooms: toRoomLayouts(cells, ["rest", "boss"], random, new Set<RoomType>(["boss"])), edges };
   }
 
   const roomCount = 6 + Math.floor(random() * 4);
@@ -180,5 +201,5 @@ export function generateStageLayout(seed: string, kind: StageKind): StageLayout 
     return FILLER_TYPE_POOL[Math.floor(random() * FILLER_TYPE_POOL.length)];
   });
 
-  return { rooms: toRoomLayouts(cells, types), edges };
+  return { rooms: toRoomLayouts(cells, types, random), edges };
 }
