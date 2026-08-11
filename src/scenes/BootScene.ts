@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { WEAPONS } from "../data/weapons";
 import { DECOR_ASSETS, OBSTACLE_CLUSTER_ASSETS, OBSTACLE_TREE_ASSETS } from "../data/decor";
-import { WEAPON_ICON_SHAPES, type WeaponIconShape } from "../data/weaponIcons";
+import { WEAPON_ART_OVERRIDES, WEAPON_ICON_SHAPES, type WeaponIconShape } from "../data/weaponIcons";
 import { ALL_CREATURE_SPRITE_SHEETS } from "../data/creatureSprites";
 import { WALL_KEYS, generateBeveledTile, generateFloorSupertile, generateWallTile } from "./tileTextures";
 
@@ -38,7 +38,10 @@ export class BootScene extends Phaser.Scene {
     this.createCrateTexture("tnt-crate", 0xb45309, 0xef4444);
     this.createCrateTexture("poison-barrel", 0x14532d, 0x4ade80);
 
+    for (const art of Object.values(WEAPON_ART_OVERRIDES)) this.load.image(art.loadKey, art.path);
+
     Object.keys(WEAPONS).forEach((id) => {
+      if (WEAPON_ART_OVERRIDES[id]) return;
       const icon = WEAPON_ICON_SHAPES[id] ?? { shape: "gun", color: 0xffffff };
       this.createWeaponIcon(`weapon-icon-${id}`, icon.shape, icon.color);
     });
@@ -61,7 +64,25 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
+    for (const [id, art] of Object.entries(WEAPON_ART_OVERRIDES)) {
+      this.bakeArtIcon(`weapon-icon-${id}`, art.loadKey);
+    }
+
     this.scene.start("MainMenuScene");
+  }
+
+  /** Scales a loaded pixel-art image to fit the standard 28x28 icon size (contain, centered) and bakes it into the `weapon-icon-<id>` texture — keeps real art interchangeable with the procedural icons for every consumer (pickup, hand, HUD). */
+  private bakeArtIcon(key: string, sourceKey: string, size = 28): void {
+    const source = this.textures.get(sourceKey).getSourceImage() as HTMLImageElement;
+    const scale = Math.min(size / source.width, size / source.height);
+    const dw = source.width * scale;
+    const dh = source.height * scale;
+    const canvasTexture = this.textures.createCanvas(key, size, size);
+    if (!canvasTexture) return;
+    const ctx = canvasTexture.context;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(source, (size - dw) / 2, (size - dh) / 2, dw, dh);
+    canvasTexture.refresh();
   }
 
   private createCircleTexture(key: string, radius: number, color: number): void {
