@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { COLOR, COLOR_NUM, bodyStyle, labelStyle, titleStyle } from "./textStyles";
+import { createPanel, type Panel } from "./panel";
 
 /** A stat bar: dark recessed trough (with a hard 1px light/dark bevel, no gradients) + colored fill. */
 interface Bar {
@@ -27,6 +28,10 @@ export class Hud {
   private bossBar: Bar;
   private bossLabel: Phaser.GameObjects.Text;
   private bossFrame: Phaser.GameObjects.Rectangle;
+  private deathPanel: Panel;
+  private deathStatsText: Phaser.GameObjects.Text;
+  private deathMenuButton: Phaser.GameObjects.Text;
+  private deathShown = false;
 
   private readonly barWidth = 200;
   private readonly barHeight = 18;
@@ -76,9 +81,26 @@ export class Hud {
     this.skillText = this.addText(this.x, afterBarsY + 90, "", bodyStyle(14, COLOR.accent)).setDepth(101);
     this.stageText = this.addText(this.x, afterBarsY + 112, "", bodyStyle(13, COLOR.gold)).setDepth(101);
 
-    this.statusText = this.addText(scene.scale.width / 2, scene.scale.height / 2, "", titleStyle(28, COLOR.danger))
+    const deathCx = scene.scale.width / 2;
+    const deathCy = scene.scale.height / 2;
+    this.deathPanel = createPanel(scene, deathCx, deathCy, 320, 200, { depth: 300 });
+    for (const r of this.deathPanel.all) r.setVisible(false);
+    this.container.add(this.deathPanel.all);
+
+    this.statusText = this.addText(deathCx, deathCy - 70, "", titleStyle(24, COLOR.danger))
       .setOrigin(0.5)
-      .setDepth(200)
+      .setDepth(301)
+      .setVisible(false);
+
+    this.deathStatsText = this.addText(deathCx, deathCy - 15, "", { ...bodyStyle(16), align: "center" })
+      .setOrigin(0.5)
+      .setDepth(301)
+      .setVisible(false);
+
+    this.deathMenuButton = this.addText(deathCx, deathCy + 60, "Return to Main Menu", bodyStyle(18, COLOR.accent))
+      .setOrigin(0.5)
+      .setDepth(301)
+      .setInteractive({ useHandCursor: true })
       .setVisible(false);
 
     this.flashText = this.addText(scene.scale.width / 2, 100, "", titleStyle(16, COLOR.gold))
@@ -191,11 +213,14 @@ export class Hud {
     this.bossLabel.setVisible(false);
   }
 
-  showDeath(): void {
-    this.showBanner("YOU DIED", COLOR.danger);
-  }
+  /** Shows the death screen once (further calls while already dead are no-ops) — kill count, the floor/stage reached, and a button back to the main menu. */
+  showDeath(killCount: number, floor: number, stage: number, onReturnToMenu: () => void): void {
+    if (this.deathShown) return;
+    this.deathShown = true;
 
-  private showBanner(text: string, color: string): void {
-    this.statusText.setColor(color).setText(text).setVisible(true);
+    for (const r of this.deathPanel.all) r.setVisible(true);
+    this.statusText.setColor(COLOR.danger).setText("YOU DIED").setVisible(true);
+    this.deathStatsText.setText(`Enemies Slain: ${killCount}\nReached: Floor ${floor} - Stage ${stage}`).setVisible(true);
+    this.deathMenuButton.setVisible(true).on("pointerdown", onReturnToMenu);
   }
 }

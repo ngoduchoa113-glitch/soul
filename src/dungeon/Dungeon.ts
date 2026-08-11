@@ -7,6 +7,7 @@ import type { ShopStand } from "../entities/ShopStand";
 import type { Portal } from "../entities/Portal";
 import type { EntityVfx } from "../entities/Boss";
 import { WALL_KEYS } from "../scenes/tileTextures";
+import { paintRockCell } from "./rockBorder";
 
 const TILE = 32;
 
@@ -112,8 +113,10 @@ export class Dungeon {
       this.buildCorridorFloor(scene, x0, y0, x1 - x0, y1 - y0);
       for (let c = 0; c < (x1 - x0) / TILE; c++) {
         const cx = x0 + c * TILE + TILE / 2;
-        this.collidables.create(cx, y0 - TILE / 2, Phaser.Math.RND.pick(WALL_KEYS));
-        this.collidables.create(cx, y1 + TILE / 2, Phaser.Math.RND.pick(WALL_KEYS));
+        this.collidables.create(cx, y0 - TILE / 2, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(scene, cx, y0 - TILE / 2, false);
+        this.collidables.create(cx, y1 + TILE / 2, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(scene, cx, y1 + TILE / 2, false);
       }
 
       const door = new Door(this.collidables, (x0 + x1) / 2, "h", originY);
@@ -131,8 +134,10 @@ export class Dungeon {
       this.buildCorridorFloor(scene, x0, y0, x1 - x0, y1 - y0);
       for (let r = 0; r < (y1 - y0) / TILE; r++) {
         const cy = y0 + r * TILE + TILE / 2;
-        this.collidables.create(x0 - TILE / 2, cy, Phaser.Math.RND.pick(WALL_KEYS));
-        this.collidables.create(x1 + TILE / 2, cy, Phaser.Math.RND.pick(WALL_KEYS));
+        this.collidables.create(x0 - TILE / 2, cy, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(scene, x0 - TILE / 2, cy, true);
+        this.collidables.create(x1 + TILE / 2, cy, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(scene, x1 + TILE / 2, cy, true);
       }
 
       const door = new Door(this.collidables, (y0 + y1) / 2, "v", originX);

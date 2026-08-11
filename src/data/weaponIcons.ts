@@ -19,6 +19,13 @@ export const WEAPON_ICON_SHAPES: Record<string, { shape: WeaponIconShape; color:
   hammer: { shape: "hammer", color: 0xd97706 },
 };
 
+/** Weapon ids with real pixel-art icons — loaded from file and baked into the `weapon-icon-<id>` texture instead of the procedural shape above. All face right, same as the "gun"/"beam" shapes. */
+export const WEAPON_ART_OVERRIDES: Record<string, { loadKey: string; path: string }> = {
+  shotgun: { loadKey: "art-shotgun", path: "/assets/weapons_2d_assets/shotgun_green_drum.png" },
+  laserGun: { loadKey: "art-laserGun", path: "/assets/weapons_2d_assets/laser_gun_blue_rail.png" },
+  assaultRifle: { loadKey: "art-assaultRifle", path: "/assets/weapons_2d_assets/assault_rifle_green.png" },
+};
+
 /** Shapes drawn pointing "up" (business end at the top) in their icon texture, rather than "right". */
 const UPWARD_SHAPES: ReadonlySet<WeaponIconShape> = new Set(["flask", "staff", "blade", "hammer"]);
 

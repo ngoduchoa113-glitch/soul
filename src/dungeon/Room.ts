@@ -16,6 +16,7 @@ import type { Combatant } from "../entities/Combatant";
 import type { EntityVfx } from "../entities/Boss";
 import { DECOR_ASSETS, OBSTACLE_CLUSTER_ASSETS, OBSTACLE_TREE_ASSETS, type ObstacleAsset } from "../data/decor";
 import { WALL_KEYS } from "../scenes/tileTextures";
+import { paintRockCell } from "./rockBorder";
 
 const TILE = 32;
 
@@ -276,6 +277,10 @@ export class Room {
    * Builds a full solid perimeter by default. On a side that's open to a
    * neighbor, the 3 gap-index tiles are skipped — the matching Door (built by
    * Dungeon at the same coordinates/GAP_INDICES) owns those tiles instead.
+   *
+   * Each cell's collision sprite is invisible (the procedural wall texture stays only as the
+   * physics body's shape) — the visible wall is a rock-clump image painted on top by
+   * paintRockCell, which overlaps neighboring cells so the border reads as one jagged ridge.
    */
   private buildWalls(group: Phaser.Physics.Arcade.StaticGroup, openSides: Set<Direction>): void {
     const cols = this.rect.width / TILE;
@@ -284,19 +289,31 @@ export class Room {
 
     for (let c = 0; c < cols; c++) {
       if (!(openSides.has("north") && gapSet.has(c))) {
-        group.create(this.rect.x + c * TILE + TILE / 2, this.rect.y + TILE / 2, Phaser.Math.RND.pick(WALL_KEYS));
+        const x = this.rect.x + c * TILE + TILE / 2;
+        const y = this.rect.y + TILE / 2;
+        group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(this.scene, x, y, false);
       }
       if (!(openSides.has("south") && gapSet.has(c))) {
-        group.create(this.rect.x + c * TILE + TILE / 2, this.rect.y + this.rect.height - TILE / 2, Phaser.Math.RND.pick(WALL_KEYS));
+        const x = this.rect.x + c * TILE + TILE / 2;
+        const y = this.rect.y + this.rect.height - TILE / 2;
+        group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(this.scene, x, y, false);
       }
     }
 
     for (let r = 0; r < rows; r++) {
       if (!(openSides.has("west") && gapSet.has(r))) {
-        group.create(this.rect.x + TILE / 2, this.rect.y + r * TILE + TILE / 2, Phaser.Math.RND.pick(WALL_KEYS));
+        const x = this.rect.x + TILE / 2;
+        const y = this.rect.y + r * TILE + TILE / 2;
+        group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(this.scene, x, y, true);
       }
       if (!(openSides.has("east") && gapSet.has(r))) {
-        group.create(this.rect.x + this.rect.width - TILE / 2, this.rect.y + r * TILE + TILE / 2, Phaser.Math.RND.pick(WALL_KEYS));
+        const x = this.rect.x + this.rect.width - TILE / 2;
+        const y = this.rect.y + r * TILE + TILE / 2;
+        group.create(x, y, Phaser.Math.RND.pick(WALL_KEYS)).setVisible(false);
+        paintRockCell(this.scene, x, y, true);
       }
     }
   }

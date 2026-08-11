@@ -325,7 +325,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.x + Math.cos(this.aimAngle) * handDistance,
       this.y + Math.sin(this.aimAngle) * handDistance,
     );
-    this.handWeapon.setRotation(this.aimAngle + weaponHoldRotationOffset(this.currentWeapon.def));
+    // Rotating straight through past +/-90 deg turns the weapon icon upside down (whatever art was
+    // "on top" ends up on the bottom). Mirror it vertically instead, and rotate the other way, so it
+    // stays right-side up while still pointing at the cursor on the left side.
+    const offset = weaponHoldRotationOffset(this.currentWeapon.def);
+    const facingLeft = Math.cos(this.aimAngle) < 0;
+    this.handWeapon.setFlipY(facingLeft);
+    this.handWeapon.setRotation(this.aimAngle + (facingLeft ? -offset : offset));
   }
 
   /** Syncs the in-hand weapon sprite to whatever's currently equipped — call after currentWeaponIndex or weapons[] changes. */
