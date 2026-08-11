@@ -3,6 +3,7 @@ import type { BossDef, BossPattern } from "../data/boss";
 import type { Combatant } from "./Combatant";
 import type { Fx } from "../fx/Fx";
 import type { Sfx } from "../audio/Sfx";
+import { BOSS_BEHOLDER } from "../data/creatureSprites";
 
 export interface EntityVfx {
   fx: Fx;
@@ -11,8 +12,8 @@ export interface EntityVfx {
 
 type BossState = "IDLE" | "CHASE" | "TELEGRAPH" | "EXECUTING" | "COOLDOWN";
 
-const PHASE1_CYCLE: BossPattern[] = ["normal", "dash", "projectile"];
-const PHASE2_CYCLE: BossPattern[] = ["normal", "dash", "projectile", "aoe", "summon"];
+const PHASE1_CYCLE: BossPattern[] = ["normal", "dash", "projectile", "barrage"];
+const PHASE2_CYCLE: BossPattern[] = ["normal", "dash", "barrage", "projectile", "spiral", "aoe", "blink", "summon", "spiral"];
 const PHASE2_SPEED_MULT = 1.3;
 const PHASE2_DAMAGE_MULT = 1.3;
 const PHASE2_COOLDOWN_DIVISOR = 1.4;
@@ -23,6 +24,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
   maxHp: number;
   phase: 1 | 2 = 1;
   roomIndex?: number;
+  /** See Combatant.alive doc — false from the instant HP hits 0, independent of Phaser's `active` (kept true so the death animation still plays). */
+  alive = true;
 
   private mode: BossState = "IDLE";
   private currentPattern: BossPattern | null = null;
@@ -36,6 +39,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
   private aoeTelegraph?: Phaser.GameObjects.Arc;
   private target: Phaser.Physics.Arcade.Sprite | null = null;
 
+  private spiralBurstsFired = 0;
+  private spiralStartAngle = 0;
+  private spiralLastBurstAt = 0;
+
   private healthBarBg: Phaser.GameObjects.Rectangle;
   private healthBarFill: Phaser.GameObjects.Rectangle;
   private vfx?: EntityVfx;
@@ -47,7 +54,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
   private onDeath?: (boss: Boss) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number, def: BossDef, vfx?: EntityVfx) {
-    super(scene, x, y, "boss");
+    super(scene, x, y, BOSS_BEHOLDER.idle.key);
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
@@ -56,8 +63,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
     this.hp = def.hp;
     this.maxHp = def.hp;
 
-    this.setCircle(30);
+    const frameSize = BOSS_BEHOLDER.idle.frameWidth;
+    this.setCircle(30, (frameSize - 60) / 2, (frameSize - 60) / 2);
     this.setDepth(9);
+    this.play(BOSS_BEHOLDER.idle.key);
 
     this.healthBarBg = scene.add.rectangle(x, y - 50, 70, 6, 0x000000).setDepth(12);
     this.healthBarFill = scene.add.rectangle(x, y - 50, 70, 6, 0xef4444).setDepth(13);
@@ -89,11 +98,28 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
     return this.phase === 2 ? this.def.patternCooldownMs / PHASE2_COOLDOWN_DIVISOR : this.def.patternCooldownMs;
   }
 
+  private get effectiveProjectileCount(): number {
+    return this.phase === 2 ? Math.round(this.def.projectileCount * 1.6) : this.def.projectileCount;
+  }
+
+  private get effectiveBarrageCount(): number {
+    return this.phase === 2 ? Math.round(this.def.barrageCount * 1.3) : this.def.barrageCount;
+  }
+
+  /** Fires `count` bullets in a full ring around the boss — the shared building block for barrage/spiral/blink. */
+  private fireRing(count: number, rotationRad = 0): void {
+    for (let i = 0; i < count; i++) {
+      const angle = rotationRad + (i / count) * Math.PI * 2;
+      this.onFireProjectile?.(this.x, this.y, angle, this.effectiveDamage, this.def.projectileSpeed);
+    }
+  }
+
   update(time: number, target: Phaser.Physics.Arcade.Sprite | null): void {
     this.target = target;
+    // Dying — still playing its death animation (stays `active` for that; see Combatant.alive
+    // doc). Health bars are already destroyed at this point, and there's no AI left to run.
+    if (!this.active || !this.alive) return;
     this.updateHealthBar();
-
-    if (!this.active) return;
 
     this.checkPhaseTransition();
 
@@ -102,7 +128,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
     switch (this.mode) {
       case "IDLE":
         this.setVelocity(0, 0);
-        if (dist <= this.def.detectRadius) this.mode = "CHASE";
+        if (target) this.mode = "CHASE";
         break;
 
       case "CHASE": {
@@ -184,8 +210,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
       case "projectile": {
         if (this.target) {
           const baseAngle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
-          const spreadDeg = 20;
-          const count = this.def.projectileCount;
+          const spreadDeg = this.phase === 2 ? 40 : 20;
+          const count = this.effectiveProjectileCount;
           for (let i = 0; i < count; i++) {
             const t = count > 1 ? i / (count - 1) - 0.5 : 0;
             const angle = baseAngle + Phaser.Math.DegToRad(t * spreadDeg);
@@ -215,6 +241,30 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
         this.vfx?.sfx.playBossAttack();
         this.enterCooldown(time);
         break;
+
+      case "barrage":
+        this.fireRing(this.effectiveBarrageCount);
+        this.vfx?.fx.hitSpark(this.x, this.y, 0xef4444);
+        this.vfx?.sfx.playBossAttack();
+        this.enterCooldown(time);
+        break;
+
+      case "spiral":
+        this.mode = "EXECUTING";
+        this.spiralBurstsFired = 0;
+        this.spiralStartAngle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        // Fire the first ring immediately instead of waiting a full interval.
+        this.spiralLastBurstAt = time - this.def.spiralBurstIntervalMs;
+        this.vfx?.sfx.playBossAttack();
+        break;
+
+      case "blink":
+        this.mode = "TELEGRAPH";
+        this.telegraphStartedAt = time;
+        this.setAlpha(0.35);
+        this.vfx?.fx.hitSpark(this.x, this.y, 0xa78bfa);
+        this.vfx?.sfx.playSkill();
+        break;
     }
   }
 
@@ -243,10 +293,31 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
         this.aoeTelegraph = undefined;
         this.enterCooldown(time);
       }
+    } else if (this.currentPattern === "blink") {
+      if (time - this.telegraphStartedAt >= this.def.blinkTelegraphMs) {
+        if (this.target) {
+          const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+          const nx = this.target.x + Math.cos(angle) * this.def.blinkDistance;
+          const ny = this.target.y + Math.sin(angle) * this.def.blinkDistance;
+          this.x = nx;
+          this.y = ny;
+          this.body!.reset(nx, ny);
+        }
+        this.setAlpha(1);
+        this.vfx?.fx.hitSpark(this.x, this.y, 0xa78bfa);
+        this.fireRing(this.effectiveBarrageCount);
+        this.vfx?.sfx.playBossAttack();
+        this.enterCooldown(time);
+      }
     }
   }
 
   private updateExecuting(time: number): void {
+    if (this.currentPattern === "spiral") {
+      this.updateSpiral(time);
+      return;
+    }
+
     if (!this.dashDamageDealt && this.target) {
       const d = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
       if (d <= this.def.meleeRange) {
@@ -257,6 +328,20 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
     }
     if (time - this.dashStartedAt >= this.def.dashDurationMs) {
       this.setVelocity(0, 0);
+      this.enterCooldown(time);
+    }
+  }
+
+  /** Fires successive rotated rings of bullets, sweeping the whole room in a spiral over time. */
+  private updateSpiral(time: number): void {
+    if (time - this.spiralLastBurstAt >= this.def.spiralBurstIntervalMs) {
+      this.spiralLastBurstAt = time;
+      const rotation = this.spiralStartAngle + Phaser.Math.DegToRad(this.def.spiralRotationDeg * this.spiralBurstsFired);
+      this.fireRing(this.def.spiralProjectilesPerBurst, rotation);
+      this.vfx?.fx.hitSpark(this.x, this.y, 0xb366ff);
+      this.spiralBurstsFired++;
+    }
+    if (this.spiralBurstsFired >= this.def.spiralBursts) {
       this.enterCooldown(time);
     }
   }
@@ -282,11 +367,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
   }
 
   takeDamage(amount: number): void {
-    if (!this.active) return;
+    if (!this.active || !this.alive) return;
     this.hp = Math.max(0, this.hp - amount);
     this.setTintFill(0xffffff);
     this.scene.time.delayedCall(60, () => {
-      if (this.active) this.clearTint();
+      if (this.active && this.alive) this.clearTint();
     });
 
     if (this.hp <= 0) {
@@ -295,11 +380,20 @@ export class Boss extends Phaser.Physics.Arcade.Sprite implements Combatant {
   }
 
   private die(): void {
-    if (!this.active) return;
+    if (!this.alive) return;
+    this.alive = false;
     this.onDeath?.(this);
     this.healthBarBg.destroy();
     this.healthBarFill.destroy();
     this.aoeTelegraph?.destroy();
-    this.destroy();
+    this.setVelocity(0, 0);
+    // Disable the physics body only (no more collisions/movement) — leave `active` alone (Phaser
+    // stops advancing animations on inactive GameObjects, so it has to stay true for the death
+    // animation to actually play; see Combatant.alive doc for the full explanation).
+    this.disableBody(false, false);
+    this.clearTint();
+    this.setAlpha(1);
+    this.play(BOSS_BEHOLDER.death.key);
+    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
   }
 }

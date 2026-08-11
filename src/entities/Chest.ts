@@ -1,26 +1,24 @@
 import Phaser from "phaser";
 import type { RoomType } from "../data/types";
-import { getWeaponVariant, type WeaponDef } from "../data/weapons";
-
-const RANGED_WEAPON_IDS = ["pistol", "shotgun", "assaultRifle"];
+import { ALL_WEAPON_IDS, getWeaponVariant, type WeaponDef } from "../data/weapons";
 
 export type ChestReward =
   | { kind: "coin"; amount: number }
   | { kind: "weapon"; def: WeaponDef }
-  | { kind: "health"; amount: number }
-  | { kind: "upgrade" };
+  | { kind: "health"; amount: number };
 
 interface RollTable {
   coinChance: number;
   weaponChance: number;
-  healthChance: number;
   coinRange: [number, number];
   rareChance: number;
 }
 
+// Whatever's left after coin/weapon chances is health — between-stage power picks replaced
+// the old chest "upgrade" outcome, so there's no third branch to reserve room for anymore.
 const ROLL_TABLES: Record<"normal" | "elite", RollTable> = {
-  normal: { coinChance: 0.45, weaponChance: 0.2, healthChance: 0.15, coinRange: [10, 20], rareChance: 0.2 },
-  elite: { coinChance: 0.25, weaponChance: 0.3, healthChance: 0.15, coinRange: [30, 50], rareChance: 0.6 },
+  normal: { coinChance: 0.45, weaponChance: 0.2, coinRange: [10, 20], rareChance: 0.2 },
+  elite: { coinChance: 0.25, weaponChance: 0.3, coinRange: [30, 50], rareChance: 0.6 },
 };
 
 export class Chest extends Phaser.GameObjects.Sprite {
@@ -46,13 +44,10 @@ export class Chest extends Phaser.GameObjects.Sprite {
       return { kind: "coin", amount: Phaser.Math.Between(table.coinRange[0], table.coinRange[1]) };
     }
     if (roll < table.coinChance + table.weaponChance) {
-      const id = Phaser.Math.RND.pick(RANGED_WEAPON_IDS);
+      const id = Phaser.Math.RND.pick(ALL_WEAPON_IDS);
       const rarity = Math.random() < table.rareChance ? "rare" : "common";
       return { kind: "weapon", def: getWeaponVariant(id, rarity) };
     }
-    if (roll < table.coinChance + table.weaponChance + table.healthChance) {
-      return { kind: "health", amount: Phaser.Math.Between(20, 35) };
-    }
-    return { kind: "upgrade" };
+    return { kind: "health", amount: Phaser.Math.Between(20, 35) };
   }
 }

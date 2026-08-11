@@ -1,20 +1,32 @@
 import Phaser from "phaser";
+import { COLOR, COLOR_NUM, bodyStyle, labelStyle, titleStyle } from "./textStyles";
+
+/** A stat bar: dark recessed trough (with a hard 1px light/dark bevel, no gradients) + colored fill. */
+interface Bar {
+  fill: Phaser.GameObjects.Rectangle;
+  /** Trough + bevel hairlines — decorative parts that move as a unit with `fill` for show/hide. */
+  parts: Phaser.GameObjects.Rectangle[];
+  width: number;
+  height: number;
+}
 
 export class Hud {
-  private fill: Phaser.GameObjects.Rectangle;
-  private label: Phaser.GameObjects.Text;
-  private energyFill: Phaser.GameObjects.Rectangle;
+  private hpBar: Bar;
+  private hpLabel: Phaser.GameObjects.Text;
+  private energyBar: Bar;
   private energyLabel: Phaser.GameObjects.Text;
   private weaponText: Phaser.GameObjects.Text;
+  private activeWeaponIcon: Phaser.GameObjects.Image;
+  private reserveWeaponIcon: Phaser.GameObjects.Image;
   private coinsText: Phaser.GameObjects.Text;
   private skillText: Phaser.GameObjects.Text;
   private stageText: Phaser.GameObjects.Text;
   private statusText: Phaser.GameObjects.Text;
   private flashText: Phaser.GameObjects.Text;
   private flashHideEvent?: Phaser.Time.TimerEvent;
-  private bossBg: Phaser.GameObjects.Rectangle;
-  private bossFill: Phaser.GameObjects.Rectangle;
+  private bossBar: Bar;
   private bossLabel: Phaser.GameObjects.Text;
+  private bossFrame: Phaser.GameObjects.Rectangle;
 
   private readonly barWidth = 200;
   private readonly barHeight = 18;
@@ -23,130 +35,120 @@ export class Hud {
   private readonly bossBarWidth = 360;
 
   private scene: Phaser.Scene;
+  private container: Phaser.GameObjects.Container;
 
-  constructor(scene: Phaser.Scene) {
+  /**
+   * `container` is GameScene's screen-fixed UI layer (see GameScene.uiContainer) — it's
+   * repositioned/rescaled every frame to counteract the zoomed world camera's scroll and zoom, so
+   * everything added here stays glued to the same screen position and size regardless of where the
+   * camera is looking. Nothing in this class uses scrollFactor(0) — that only cancels camera
+   * *scroll*, not *zoom*, so on its own it isn't enough once the world camera is zoomed.
+   */
+  constructor(scene: Phaser.Scene, container: Phaser.GameObjects.Container) {
     this.scene = scene;
+    this.container = container;
 
-    scene.add
-      .rectangle(this.x, this.y, this.barWidth, this.barHeight, 0x000000, 0.6)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(100);
+    this.hpLabel = this.addText(this.x, this.y - 15, "HP", labelStyle(11)).setDepth(101);
+    this.hpBar = this.buildBar(this.x, this.y, this.barWidth, this.barHeight, COLOR_NUM.hp);
 
-    this.fill = scene.add
-      .rectangle(this.x + 2, this.y + 2, this.barWidth - 4, this.barHeight - 4, 0xe25555)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    this.label = scene.add
-      .text(this.x, this.y - 18, "HP", { fontSize: "14px", color: "#ffffff" })
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    const energyBarY = this.y + this.barHeight + 4;
+    const energyBarY = this.y + this.barHeight + 12;
     const energyBarHeight = 14;
+    this.energyLabel = this.addText(this.x, energyBarY - 15, "ENERGY", labelStyle(11)).setDepth(101);
+    this.energyBar = this.buildBar(this.x, energyBarY, this.barWidth, energyBarHeight, COLOR_NUM.energy);
 
-    scene.add
-      .rectangle(this.x, energyBarY, this.barWidth, energyBarHeight, 0x000000, 0.6)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(100);
+    const afterBarsY = energyBarY + energyBarHeight + 16;
 
-    this.energyFill = scene.add
-      .rectangle(this.x + 2, energyBarY + 2, this.barWidth - 4, energyBarHeight - 4, 0x60a5fa)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
+    this.addText(this.x, afterBarsY - 15, "WEAPON", labelStyle(11)).setDepth(101);
+
+    this.activeWeaponIcon = scene.add.image(this.x + 14, afterBarsY + 12, "spark").setDisplaySize(28, 28).setDepth(101);
+    this.container.add(this.activeWeaponIcon);
+
+    this.reserveWeaponIcon = scene.add
+      .image(this.x + 14, afterBarsY + 44, "spark")
+      .setDisplaySize(20, 20)
+      .setAlpha(0.6)
       .setDepth(101);
+    this.container.add(this.reserveWeaponIcon);
 
-    this.energyLabel = scene.add
-      .text(this.x + 4, energyBarY + 1, "", { fontSize: "11px", color: "#ffffff" })
-      .setScrollFactor(0)
-      .setDepth(102);
+    this.weaponText = this.addText(this.x + 34, afterBarsY, "", { ...bodyStyle(14), lineSpacing: 10 }).setDepth(101);
 
-    const afterBarsY = energyBarY + energyBarHeight + 6;
+    this.coinsText = this.addText(this.x, afterBarsY + 68, "Coins: 0", bodyStyle(14, COLOR.gold)).setDepth(101);
+    this.skillText = this.addText(this.x, afterBarsY + 90, "", bodyStyle(14, COLOR.accent)).setDepth(101);
+    this.stageText = this.addText(this.x, afterBarsY + 112, "", bodyStyle(13, COLOR.gold)).setDepth(101);
 
-    this.weaponText = scene.add
-      .text(this.x, afterBarsY, "", { fontSize: "14px", color: "#ffffff" })
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    this.coinsText = scene.add
-      .text(this.x, afterBarsY + 22, "Coins: 0", { fontSize: "14px", color: "#ffd700" })
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    this.skillText = scene.add
-      .text(this.x, afterBarsY + 44, "", { fontSize: "14px", color: "#4fd1c5" })
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    this.stageText = scene.add
-      .text(this.x, afterBarsY + 66, "", { fontSize: "13px", color: "#ffd700" })
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    this.statusText = scene.add
-      .text(scene.scale.width / 2, scene.scale.height / 2, "", {
-        fontSize: "32px",
-        color: "#ff4444",
-        fontStyle: "bold",
-      })
+    this.statusText = this.addText(scene.scale.width / 2, scene.scale.height / 2, "", titleStyle(28, COLOR.danger))
       .setOrigin(0.5)
-      .setScrollFactor(0)
       .setDepth(200)
       .setVisible(false);
 
-    this.flashText = scene.add
-      .text(scene.scale.width / 2, 100, "", {
-        fontSize: "22px",
-        color: "#ffaa00",
-        fontStyle: "bold",
-      })
+    this.flashText = this.addText(scene.scale.width / 2, 100, "", titleStyle(16, COLOR.gold))
       .setOrigin(0.5)
-      .setScrollFactor(0)
       .setDepth(200)
       .setVisible(false);
 
     const bossX = scene.scale.width / 2 - this.bossBarWidth / 2;
     const bossY = 16;
 
-    this.bossBg = scene.add
-      .rectangle(bossX, bossY, this.bossBarWidth, 14, 0x000000, 0.6)
+    this.bossFrame = scene.add
+      .rectangle(bossX - 1, bossY - 1, this.bossBarWidth + 2, 14 + 2)
       .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(100)
+      .setStrokeStyle(1, 0x000000, 0.7)
+      .setDepth(99)
       .setVisible(false);
+    this.container.add(this.bossFrame);
 
-    this.bossFill = scene.add
-      .rectangle(bossX + 2, bossY + 2, this.bossBarWidth - 4, 10, 0xef4444)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(101)
-      .setVisible(false);
+    this.bossBar = this.buildBar(bossX, bossY, this.bossBarWidth, 14, 0xef4444);
+    this.setBarVisible(this.bossBar, false);
 
-    this.bossLabel = scene.add
-      .text(scene.scale.width / 2, bossY - 16, "", { fontSize: "13px", color: "#ffffff" })
+    this.bossLabel = this.addText(scene.scale.width / 2, bossY - 16, "", labelStyle(13, COLOR.text))
       .setOrigin(0.5, 0)
-      .setScrollFactor(0)
       .setDepth(101)
       .setVisible(false);
+  }
+
+  private addText(x: number, y: number, text: string, style: Phaser.Types.GameObjects.Text.TextStyle): Phaser.GameObjects.Text {
+    const obj = this.scene.add.text(x, y, text, style);
+    this.container.add(obj);
+    return obj;
+  }
+
+  /**
+   * A dark recessed trough (fixed-size background + a hard-edged 1px light-top/dark-bottom bevel,
+   * baked once — no gradients) with a colored fill inset inside it that resizes on value changes.
+   */
+  private buildBar(x: number, y: number, w: number, h: number, fillColor: number): Bar {
+    const trough = this.scene.add.rectangle(x, y, w, h, 0x14141c).setOrigin(0, 0).setStrokeStyle(1, 0x3a3a4a).setDepth(100);
+    // Hard-edged bevel: a darker hairline along the top, a lighter one along the bottom — reads as
+    // "recessed into the panel" without any gradient/blur.
+    const bevelTop = this.scene.add.rectangle(x, y, w, 1, 0x000000, 0.5).setOrigin(0, 0).setDepth(100);
+    const bevelBottom = this.scene.add.rectangle(x, y + h - 1, w, 1, 0xffffff, 0.08).setOrigin(0, 0).setDepth(100);
+    const fill = this.scene.add.rectangle(x + 2, y + 2, w - 4, h - 4, fillColor).setOrigin(0, 0).setDepth(101);
+
+    this.container.add([trough, bevelTop, bevelBottom, fill]);
+    return { fill, parts: [trough, bevelTop, bevelBottom], width: w - 4, height: h - 4 };
+  }
+
+  private setBarVisible(bar: Bar, visible: boolean): void {
+    bar.fill.setVisible(visible);
+    for (const part of bar.parts) part.setVisible(visible);
   }
 
   setHp(hp: number, maxHp: number): void {
     const frac = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-    this.fill.setSize((this.barWidth - 4) * frac, this.barHeight - 4);
-    this.label.setText(`HP ${Math.ceil(hp)}/${maxHp}`);
+    this.hpBar.fill.setSize(this.hpBar.width * frac, this.hpBar.height);
+    this.hpLabel.setText(`HP ${Math.ceil(hp)}/${maxHp}`);
   }
 
-  setWeapon(name: string): void {
-    this.weaponText.setText(name);
+  setWeapon(activeName: string, activeIconKey: string, reserveName: string, reserveIconKey: string): void {
+    this.weaponText.setText(`${activeName}\n(${reserveName})`);
+    this.activeWeaponIcon.setTexture(activeIconKey);
+    this.reserveWeaponIcon.setTexture(reserveIconKey);
   }
 
   setEnergy(energy: number, maxEnergy: number): void {
     const frac = Phaser.Math.Clamp(energy / maxEnergy, 0, 1);
-    this.energyFill.setSize((this.barWidth - 4) * frac, 10);
-    this.energyLabel.setText(`Energy ${Math.ceil(energy)}/${maxEnergy}`);
+    this.energyBar.fill.setSize(this.energyBar.width * frac, this.energyBar.height);
+    this.energyLabel.setText(`ENERGY ${Math.ceil(energy)}/${maxEnergy}`);
   }
 
   setCoins(coins: number): void {
@@ -176,21 +178,21 @@ export class Hud {
 
   setBossHp(hp: number, maxHp: number, name = "BOSS"): void {
     const frac = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-    this.bossFill.setSize((this.bossBarWidth - 4) * frac, 10);
+    this.bossBar.fill.setSize(this.bossBar.width * frac, this.bossBar.height);
     this.bossLabel.setText(`${name} ${Math.ceil(hp)}/${maxHp}`);
-    this.bossBg.setVisible(true);
-    this.bossFill.setVisible(true);
+    this.bossFrame.setVisible(true);
+    this.setBarVisible(this.bossBar, true);
     this.bossLabel.setVisible(true);
   }
 
   hideBossHp(): void {
-    this.bossBg.setVisible(false);
-    this.bossFill.setVisible(false);
+    this.bossFrame.setVisible(false);
+    this.setBarVisible(this.bossBar, false);
     this.bossLabel.setVisible(false);
   }
 
   showDeath(): void {
-    this.showBanner("YOU DIED", "#ff4444");
+    this.showBanner("YOU DIED", COLOR.danger);
   }
 
   private showBanner(text: string, color: string): void {

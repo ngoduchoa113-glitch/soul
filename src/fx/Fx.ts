@@ -9,9 +9,10 @@ export class Fx {
 
   muzzleFlash(x: number, y: number, angle: number): void {
     const img = this.scene.add
-      .image(x + Math.cos(angle) * 18, y + Math.sin(angle) * 18, "spark")
+      .image(x + Math.cos(angle) * 18, y + Math.sin(angle) * 18, "particle-flash")
+      .setRotation(angle)
       .setTint(0xfff4b0)
-      .setScale(1.6)
+      .setScale(1.4)
       .setDepth(15)
       .setBlendMode(Phaser.BlendModes.ADD);
     this.scene.tweens.add({
@@ -34,11 +35,17 @@ export class Fx {
     });
   }
 
+  /** Small debris fragments flying outward — each shard is rotated to face its own flight direction, so a hit reads as scattering chips, not a recolored dot burst. */
   hitSpark(x: number, y: number, color = 0xffffff): void {
     for (let i = 0; i < 5; i++) {
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
       const dist = Phaser.Math.Between(10, 22);
-      const dot = this.scene.add.image(x, y, "spark").setTint(color).setScale(0.6).setDepth(14);
+      const dot = this.scene.add
+        .image(x, y, "particle-shard")
+        .setRotation(angle)
+        .setTint(color)
+        .setScale(Phaser.Math.FloatBetween(0.9, 1.3))
+        .setDepth(14);
       this.scene.tweens.add({
         targets: dot,
         x: x + Math.cos(angle) * dist,
@@ -85,6 +92,21 @@ export class Fx {
       onComplete: () => ring.destroy(),
     });
     this.hitSpark(x, y, strokeColor);
+  }
+
+  laserBeam(x1: number, y1: number, x2: number, y2: number, color = 0xff4d6d, width = 4): void {
+    const g = this.scene.add.graphics().setDepth(13);
+    g.lineStyle(width, color, 0.9);
+    g.beginPath();
+    g.moveTo(x1, y1);
+    g.lineTo(x2, y2);
+    g.strokePath();
+    this.scene.tweens.add({
+      targets: g,
+      alpha: 0,
+      duration: 120,
+      onComplete: () => g.destroy(),
+    });
   }
 
   screenShake(intensity: number, durationMs: number): void {

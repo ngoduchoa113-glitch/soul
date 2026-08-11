@@ -1,8 +1,20 @@
 type Waveform = OscillatorType;
 
 export class Sfx {
+  // Shared across every Sfx instance (each scene constructs its own) so a mute toggle
+  // made on the title screen actually sticks once gameplay creates a fresh instance.
+  private static muted = false;
+
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+
+  static get isMuted(): boolean {
+    return Sfx.muted;
+  }
+
+  static setMuted(muted: boolean): void {
+    Sfx.muted = muted;
+  }
 
   private ensureContext(): AudioContext | null {
     if (this.ctx) return this.ctx;
@@ -21,6 +33,7 @@ export class Sfx {
   }
 
   private tone(freq: number, durationMs: number, type: Waveform, volume: number, freqEnd?: number): void {
+    if (Sfx.muted) return;
     const ctx = this.ensureContext();
     if (!ctx || !this.master) return;
     const now = ctx.currentTime;
@@ -41,6 +54,7 @@ export class Sfx {
   }
 
   private noiseBurst(durationMs: number, volume: number, filterFreq: number): void {
+    if (Sfx.muted) return;
     const ctx = this.ensureContext();
     if (!ctx || !this.master) return;
     const now = ctx.currentTime;

@@ -1,5 +1,5 @@
 export type CharacterId = "knight" | "samurai" | "healer" | "mage";
-export type SkillId = "dashSlash" | "fireNova" | "healPulse";
+export type SkillId = "dashSlash" | "fireBarrage" | "healPulse" | "weaponBoost";
 
 export interface CharacterDef {
   id: CharacterId;
@@ -14,20 +14,20 @@ export interface CharacterDef {
   skillName: string;
   skillCooldownMs: number;
 
-  // Knight/Samurai — Dash Slash (Shield Charge / Iaijutsu Strike)
+  // Samurai — Iaijutsu Strike: dash through enemies, damaging everything on the way
   dashSpeed?: number;
   dashDurationMs?: number;
   dashHitRadius?: number;
 
-  // Knight — Shield Charge defense buff
-  shieldBonus?: number;
-  shieldDurationMs?: number;
-
-  // Mage — Fire Nova
-  novaRadius?: number;
+  // Mage — Fire Barrage
+  fireBarrageCount?: number;
 
   // Healer — Heal Pulse
   healAmount?: number;
+
+  // Knight — Weapon Overdrive: temporarily doubles attack speed and makes ranged weapons free to fire
+  weaponBoostDurationMs?: number;
+  weaponBoostMultiplier?: number;
 }
 
 export const CHARACTERS: Record<CharacterId, CharacterDef> = {
@@ -40,14 +40,11 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
     speed: 180,
     defenseReduction: 0.3,
     maxEnergy: 100,
-    skillId: "dashSlash",
-    skillName: "Shield Charge",
-    skillCooldownMs: 8000,
-    dashSpeed: 600,
-    dashDurationMs: 260,
-    dashHitRadius: 55,
-    shieldBonus: 0.25,
-    shieldDurationMs: 2500,
+    skillId: "weaponBoost",
+    skillName: "Weapon Overdrive",
+    skillCooldownMs: 10000,
+    weaponBoostDurationMs: 6000,
+    weaponBoostMultiplier: 2,
   },
   samurai: {
     id: "samurai",
@@ -74,10 +71,10 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
     speed: 175,
     defenseReduction: 0,
     maxEnergy: 100,
-    skillId: "fireNova",
-    skillName: "Fire Nova",
+    skillId: "fireBarrage",
+    skillName: "Fire Barrage",
     skillCooldownMs: 12000,
-    novaRadius: 130,
+    fireBarrageCount: 10,
   },
   healer: {
     id: "healer",
