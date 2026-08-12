@@ -4,9 +4,14 @@ import { DECOR_ASSETS, OBSTACLE_CLUSTER_ASSETS, OBSTACLE_TREE_ASSETS } from "../
 import { WEAPON_ART_OVERRIDES, WEAPON_ICON_SHAPES, type WeaponIconShape } from "../data/weaponIcons";
 import { UPGRADE_ICON_SHAPES, type UpgradeIconShape } from "../data/upgradeIcons";
 import { FLOOR_TILE_ASSETS } from "../data/floorTiles";
-import { ROCK_ASSETS } from "../data/rocks";
+import { WALL_ASSETS } from "../data/walls";
 import { ALL_CREATURE_SPRITE_SHEETS } from "../data/creatureSprites";
+import { SHOP_KEEPER_ANIM } from "../data/shopKeeper";
 import { WALL_KEYS, generateBeveledTile, generateFloorSupertileFromArt, generateWallTile } from "./tileTextures";
+import { prepareWallStrips } from "../dungeon/wallVisuals";
+
+/** Every spritesheet that just needs a straightforward "load frames, build a looping/one-shot anim from them" — creatures plus standalone NPCs like the shop keeper. */
+const ALL_SPRITE_SHEETS = [...ALL_CREATURE_SPRITE_SHEETS, SHOP_KEEPER_ANIM];
 
 /**
  * Loads real art (characters, monsters, obstacles, decor) and builds animations for it, plus
@@ -19,19 +24,19 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     this.load.spritesheet("portal", "/assets/portal.png", { frameWidth: 32, frameHeight: 44 });
+    this.load.image("chest-closed", "/assets/chests_2d_assets/chest_03_gold_banded_closed.png");
+    this.load.image("chest-open", "/assets/chests_2d_assets/chest_03_gold_banded_open.png");
     for (const obstacle of [...OBSTACLE_CLUSTER_ASSETS, ...OBSTACLE_TREE_ASSETS]) this.load.image(obstacle.key, obstacle.path);
     for (const decor of DECOR_ASSETS) this.load.image(decor.key, decor.path);
-    for (const sheet of ALL_CREATURE_SPRITE_SHEETS) {
+    for (const sheet of ALL_SPRITE_SHEETS) {
       this.load.spritesheet(sheet.key, sheet.path, { frameWidth: sheet.frameWidth, frameHeight: sheet.frameHeight });
     }
     for (const tile of FLOOR_TILE_ASSETS) this.load.image(tile.key, tile.path);
-    for (const rock of ROCK_ASSETS) this.load.image(rock.key, rock.path);
+    for (const wall of Object.values(WALL_ASSETS)) this.load.image(wall.key, wall.path);
 
     this.createCircleTexture("projectile", 5, 0xf6e05e);
     WALL_KEYS.forEach((key, i) => generateWallTile(this, key, 4000 + i * 97));
-    generateBeveledTile(this, "chest", 24, 20, 0xd4a017, 0xffe27a, 0x8a5a0a);
     generateBeveledTile(this, "door", 32, 32, 0x8a5a2b, 0xb07a42, 0x4a2e14);
-    generateBeveledTile(this, "shop", 28, 28, 0x3b82f6, 0x7db1ff, 0x1e4fa3);
     this.createCircleTexture("spark", 6, 0xffffff);
     this.createShardTexture("particle-shard");
     this.createFlashTexture("particle-flash");
@@ -63,7 +68,7 @@ export class BootScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    for (const sheet of ALL_CREATURE_SPRITE_SHEETS) {
+    for (const sheet of ALL_SPRITE_SHEETS) {
       this.anims.create({
         key: sheet.key,
         frames: this.anims.generateFrameNumbers(sheet.key, { start: 0, end: sheet.frameCount - 1 }),
@@ -80,6 +85,7 @@ export class BootScene extends Phaser.Scene {
       "floor",
       FLOOR_TILE_ASSETS.map((tile) => tile.key),
     );
+    prepareWallStrips(this);
 
     this.scene.start("MainMenuScene");
   }

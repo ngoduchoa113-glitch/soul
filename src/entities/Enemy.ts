@@ -44,7 +44,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite implements Combatant {
   private onDeath?: (enemy: Enemy) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number, def: EnemyDef, vfx?: EntityVfx, isElite = false) {
-    const creatureAnims = enemyAnimSet(def.behavior, isElite, def.element);
+    const creatureAnims = enemyAnimSet(def, isElite);
     super(scene, x, y, creatureAnims.idle.key);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -58,8 +58,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite implements Combatant {
     this.setCircle(HITBOX_RADIUS, (frameWidth - HITBOX_RADIUS * 2) / 2, (frameHeight - HITBOX_RADIUS * 2) / 2);
     this.setDepth(9);
     this.play(creatureAnims.idle.key);
-    // Every behavior has its own dedicated art now — elite just gets a size bump on top of that.
-    if (isElite) this.setScale(1.15);
+    // Every behavior has its own dedicated art now — elite gets a size bump on top of whatever
+    // base scale the art needs (e.g. the skeleton sheet is drawn at a much higher native res
+    // than this game's other creature sheets, so its own `scale` brings it back down first).
+    const baseScale = creatureAnims.scale ?? 1;
+    this.setScale(isElite ? baseScale * 1.15 : baseScale);
 
     this.healthBarBg = scene.add.rectangle(x, y - 24, 28, 4, 0x000000).setDepth(12);
     this.healthBarFill = scene.add.rectangle(x, y - 24, 28, 4, 0x4ade80).setDepth(13);
@@ -181,6 +184,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite implements Combatant {
         if (time - this.lastAttackAt >= this.def.attackCooldownMs) {
           this.lastAttackAt = time;
           this.onAttackPlayer?.(this.effectiveDamage);
+          this.playAttackAnim();
           this.aiState = "COOLDOWN";
         }
         break;
@@ -194,6 +198,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite implements Combatant {
       default:
         this.aiState = "IDLE";
     }
+  }
+
+  /** Plays a one-shot attack swing on top of the idle loop, for creature sets that have one (see CreatureAnimSet.attack) — a no-op otherwise, so this is safe to call from any behavior. */
+  private playAttackAnim(): void {
+    const attackAnim = this.creatureAnims.attack;
+    if (!attackAnim) return;
+    this.play(attackAnim.key);
+    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      if (this.alive) this.play(this.creatureAnims.idle.key);
+    });
   }
 
   private rangedUpdate(time: number, target: Phaser.Physics.Arcade.Sprite | null, dist: number): void {
@@ -235,6 +249,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite implements Combatant {
           this.lastAttackAt = time;
           const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
           this.onFireProjectilePattern?.(this.x, this.y, angle, this.def);
+          this.playAttackAnim();
           this.aiState = "COOLDOWN";
         }
         break;
@@ -651,6 +666,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite implements Combatant {
           this.lastAttackAt = time;
           const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
           this.onFireProjectilePattern?.(this.x, this.y, angle, this.def);
+          this.playAttackAnim();
           this.aiState = "COOLDOWN";
         }
         break;
